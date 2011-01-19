@@ -145,15 +145,16 @@ def downsample_lines(lines, h):
   
   return sorted(scoresorted, lambda x,y:cmp(x.i,y.i)), scale, downsampled
       
-def visible_lines_top_bottom(geditwindow):
-  view = me.geditwindow.get_active_view()
+def visible_lines_top_bottom(geditwin):
+  view = geditwin.get_active_view()
   rect = view.get_visible_rect()
   topiter, _ = view.get_line_at_y(rect.y)
   botiter, _ = view.get_line_at_y(rect.y+rect.height)
   return topiter.get_line(), botiter.get_line()
       
-def scrollbar(lines,topI,botI,w,h,cr,scrollbarW=4):
+def scrollbar(lines,topI,botI,w,h,cr,scrollbarW=15):
   "top and bot a passed as line indices"
+  # figure out location
   topY = None
   botY = None
   for line in lines:
@@ -163,17 +164,73 @@ def scrollbar(lines,topI,botI,w,h,cr,scrollbarW=4):
     if not botY:
       if line.i >= botI:
         botY = line.y
+
+  if 1: # scheme 1
+    cr.set_source_rgb(0,0,0)
+    cr.move_to(w-scrollbarW/2.,0)
+    cr.line_to(w-scrollbarW/2.,topY)
+    cr.stroke()
+    cr.move_to(w-scrollbarW/2.,botY)
+    cr.line_to(w-scrollbarW/2.,h)
+    cr.stroke()
+    if 0:
+      cr.rectangle(w-scrollbarW,topY,scrollbarW-1,botY-topY)
+      cr.stroke()
+    if 1: # bottom lines
+      #cr.set_line_width(2)
+      #cr.move_to(w-scrollbarW,topY)
+      cr.move_to(0,topY)
+      cr.line_to(w,topY)
+      cr.stroke()
+      cr.move_to(0,botY)
+      cr.line_to(w,botY)
+      cr.stroke()
+    if 1: # rect
+      cr.set_source_rgba(.5,.5,.5,.1)
+      #cr.set_source_rgba(.1,.1,.1,.35)
+      #cr.rectangle(w-scrollbarW,topY,scrollbarW,botY-topY)
+      cr.rectangle(0,topY,w,botY-topY)
+      cr.fill()
         
-  cr.set_source_rgb(.1,.1,.1)
-  cr.rectangle(w-scrollbarW,0,scrollbarW,h)
-  cr.fill()
+  if 0: # bg rectangle     
+    cr.set_source_rgba(.1,.1,.1,.35)
+    cr.rectangle(w-scrollbarW,0,scrollbarW,h)
+    cr.fill()
+
+  if 0: # view indicator  
+    cr.set_source_rgba(.5,.5,.5,.5)
+    #cr.set_source_rgba(.1,.1,.1,.35)
+    cr.rectangle(w-scrollbarW,topY,scrollbarW,botY-topY)
+    cr.fill()
+    cr.rectangle(w-scrollbarW,topY,scrollbarW-1,botY-topY)
+    cr.set_line_width(.5)
+    cr.set_source_rgb(1,1,1)
+    #cr.set_source_rgb(0,0,0)
+    cr.stroke()
   
+  if 0: # lines
+    cr.set_source_rgb(1,1,1)
+    cr.move_to(w,0)
+    cr.line_to(w-scrollbarW,topY)
+    cr.line_to(w-scrollbarW,botY)
+    cr.line_to(w,h)
+    cr.stroke()
   
+    
+def refresh(textmapview):
+  try:
+    win = textmapview.darea.get_window()
+  except AttributeError:
+    win = textmapview.darea.window
+  if win:
+    w,h = win.get_size()
+    textmapview.darea.queue_draw_area(0,0,w,h)
+      
 class TextmapView(gtk.VBox):
-  def __init__(me, geditwindow):
+  def __init__(me, geditwin):
     gtk.VBox.__init__(me)
     
-    me.geditwindow = geditwindow
+    me.geditwin = geditwin
     
     darea = gtk.DrawingArea()
     darea.connect("expose-event", me.expose)
@@ -193,14 +250,15 @@ class TextmapView(gtk.VBox):
       if line.y > event.y:
         break
     #print line.i, repr(line.raw)
-    view = me.geditwindow.get_active_view()
-    doc = me.geditwindow.get_active_tab().get_document()
+    view = me.geditwin.get_active_view()
+    doc = me.geditwin.get_active_tab().get_document()
     doc.place_cursor(doc.get_iter_at_line_index(line.i,0))
     view.scroll_to_cursor()
+    refresh(me)
     
   def expose(me, widget, event):
-    #print 'expose',me.geditwindow.get_active_tab().get_document().get_uri(),[d.get_uri() for d in me.geditwindow.get_documents()]
-    doc = me.geditwindow.get_active_tab().get_document()
+    #print 'expose',me.geditwin.get_active_tab().get_document().get_uri(),[d.get_uri() for d in me.geditwin.get_documents()]
+    doc = me.geditwin.get_active_tab().get_document()
     lines = document_lines(doc)
     try:
       win = widget.get_window()
@@ -277,7 +335,7 @@ class TextmapView(gtk.VBox):
       cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.)
       fit_text(line.section,4*w/5,line.section_len*rectH,cr)
       
-    topL,botL = visible_lines_top_bottom(me.geditwindow)
+    topL,botL = visible_lines_top_bottom(me.geditwin)
     scrollbar(lines,topL,botL,w,h,cr)
       
     me.lines = lines
@@ -303,13 +361,7 @@ class ExamplePyWindowHelper:
     me.textmapview = None
 
   def update_ui(me):
-    try:
-      win = me.textmapview.darea.get_window()
-    except AttributeError:
-      win = me.textmapview.darea.window
-    if win:
-      w,h = win.get_size()
-      me.textmapview.darea.queue_draw_area(0,0,w,h)
+    refresh(me.textmapview)
     
 class ExamplePyPlugin(gedit.Plugin):
   def __init__(me):
