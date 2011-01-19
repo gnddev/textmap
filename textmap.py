@@ -138,13 +138,37 @@ def downsample_lines(lines, h):
                      
   scoresorted = sorted(lines, lambda x,y: cmp(x.score,y.score))
   erasures_ = int(math.ceil(n - maxlines_))
-  print 'erasures_',erasures_
+  #print 'erasures_',erasures_
   scoresorted[0:erasures_]=[]
     
   downsampled = True
   
   return sorted(scoresorted, lambda x,y:cmp(x.i,y.i)), scale, downsampled
       
+def visible_lines_top_bottom(geditwindow):
+  view = me.geditwindow.get_active_view()
+  rect = view.get_visible_rect()
+  topiter, _ = view.get_line_at_y(rect.y)
+  botiter, _ = view.get_line_at_y(rect.y+rect.height)
+  return topiter.get_line(), botiter.get_line()
+      
+def scrollbar(lines,topI,botI,w,h,cr,scrollbarW=4):
+  "top and bot a passed as line indices"
+  topY = None
+  botY = None
+  for line in lines:
+    if not topY:
+      if line.i >= topI:
+        topY = line.y
+    if not botY:
+      if line.i >= botI:
+        botY = line.y
+        
+  cr.set_source_rgb(.1,.1,.1)
+  cr.rectangle(w-scrollbarW,0,scrollbarW,h)
+  cr.fill()
+  
+  
 class TextmapView(gtk.VBox):
   def __init__(me, geditwindow):
     gtk.VBox.__init__(me)
@@ -173,7 +197,6 @@ class TextmapView(gtk.VBox):
     doc = me.geditwindow.get_active_tab().get_document()
     doc.place_cursor(doc.get_iter_at_line_index(line.i,0))
     view.scroll_to_cursor()
-    probj(view)
     
   def expose(me, widget, event):
     #print 'expose',me.geditwindow.get_active_tab().get_document().get_uri(),[d.get_uri() for d in me.geditwindow.get_documents()]
@@ -253,6 +276,9 @@ class TextmapView(gtk.VBox):
       cr.set_font_size(12)
       cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.)
       fit_text(line.section,4*w/5,line.section_len*rectH,cr)
+      
+    topL,botL = visible_lines_top_bottom(me.geditwindow)
+    scrollbar(lines,topL,botL,w,h,cr)
       
     me.lines = lines
       
