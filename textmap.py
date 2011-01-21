@@ -77,27 +77,28 @@ def text_extents(str,cr):
   #print repr(str),x,nx,y,ny
   ascent, descent, height, max_x_advance, max_y_advance = cr.font_extents()
   
-  return 0, 0, nx, height, 0, 0
+  return nx, height
   
 def fit_text(str, w, h, cr):
-  moved_downP = False
+  moved_down = False
   originalx,_ = cr.get_current_point()
   sofarH = 0
+  rn = []
   while 1:
+    # find the next chunk of the string that fits
     for i in range(len(str)):
-      _, _, tw, th, _, _ = text_extents(str[:i],cr)
-      #_, _, tw, th, _, _ = cr.text_extents(str[:i])
+      tw, th = text_extents(str[:i],cr)
       if tw > w:
         break
     disp = str[:i+1]
     str = str[i+1:]
-    _, _, tw, th, _, _ = text_extents(disp,cr)
-    #_, _, tw, th, _, _ = cr.text_extents(disp)
+    tw, th = text_extents(disp,cr)
+    
     sofarH += th
     if sofarH > h:
-      return
-    if not moved_downP:
-      moved_downP = True
+      return rn
+    if not moved_down:
+      moved_down = True
       cr.rel_move_to(0, th)
       
     # bg rectangle
@@ -110,13 +111,25 @@ def fit_text(str, w, h, cr):
     cr.fill()
     cr.move_to(x,y)
     
+    # actually display
     cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.)
     cr.show_text(disp)
+    
+    # remember
+    rec = struct()
+    rec.x = x
+    rec.y = y
+    rec.th = th
+    rec.tw = tw
+    rn.append(rec)
+    
     cr.rel_move_to(0,th+3)
     x,y = cr.get_current_point()
     cr.move_to(originalx,y)
+    
     if not str:
       break
+  return rn
       
 def downsample_lines(lines, h):
   n = len(lines)
@@ -176,7 +189,7 @@ def scrollbar(lines,topI,botI,w,h,cr,scrollbarW=10):
     cr.rectangle(w-scrollbarW,botY,scrollbarW,h-botY)
     cr.fill()
     
-  if 1: # scheme 1
+  if 0: # scheme 1
     cr.set_line_width(1)
     #cr.set_source_rgb(0,0,0)
     #cr.set_source_rgb(1,1,1)
@@ -207,6 +220,48 @@ def scrollbar(lines,topI,botI,w,h,cr,scrollbarW=10):
       #cr.rectangle(w-scrollbarW,topY,scrollbarW,botY-topY)
       cr.rectangle(0,topY,w,botY-topY)
       cr.fill()
+      
+  if 1: # scheme 2
+    cr.set_line_width(3)
+    cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.)
+    if 1: # bottom lines
+      cr.move_to(0,topY)
+      cr.line_to(w,topY)
+      cr.stroke()
+      cr.move_to(0,botY)
+      cr.line_to(w,botY)
+      cr.stroke()
+    if 1: # side lines
+      cr.set_line_width(2)
+      len = (botY-topY)/8
+      margin = 1
+      if 0: # left
+        cr.move_to(margin,topY)
+        cr.line_to(margin,topY+len)
+        cr.stroke()
+        cr.move_to(margin,botY-len)
+        cr.line_to(margin,botY)
+        cr.stroke()
+      if 1: # right
+        cr.move_to(w-margin,topY)
+        cr.line_to(w-margin,topY+len)
+        cr.stroke()
+        cr.move_to(w-margin,botY-len)
+        cr.line_to(w-margin,botY)
+        cr.stroke()
+    if 0: # center
+      len = (botY-topY)/5
+      cx = w/2
+      cy = topY+(botY-topY)/2
+      if 1: # vert
+        for x in (cx,):#(cx-len/2,cx,cx+len/2):
+          cr.move_to(x,cy-len/2)
+          cr.line_to(x,cy+len/2)
+          cr.stroke()
+      if 0: # horiz
+        cr.move_to(cx-len/2,cy)
+        cr.line_to(cx+len/2,cy)
+        cr.stroke()
     
   if 0: # view indicator  
     cr.set_source_rgba(.5,.5,.5,.5)
@@ -300,6 +355,8 @@ class TextmapView(gtk.VBox):
     
     #print 'doc',doc.get_uri(), lines[0].raw
     
+    # display text silhouette
+    
     rectH = h/float(len(lines))
     sofarH= 0
     sections = []
@@ -311,9 +368,7 @@ class TextmapView(gtk.VBox):
         lastH = sofarH
         cr.set_font_size(scale)
         if line.raw.strip():
-          _,_,tw,th,_,_= text_extents(line.raw,cr)
-          #_,_,tw,th,_,_= cr.text_extents(line.raw)
-          #print th
+          tw,th = text_extents(line.raw,cr)
           cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.) # fg
           cr.show_text(line.raw)
           if downsampled:
@@ -331,6 +386,8 @@ class TextmapView(gtk.VBox):
         
       cr.move_to(0, sofarH)
         
+    # display sections
+    
     for line, lastH in sections:
     
       if 0: # section lines
@@ -344,7 +401,14 @@ class TextmapView(gtk.VBox):
         cr.move_to(0,lastH)
         cr.set_font_size(12)
         cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.)
-        fit_text(line.section,4*w/5,line.section_len*rectH,cr)
+        dispnfo = fit_text(line.section,4*w/5,line.section_len*rectH,cr)
+        
+      if 0 and dispnfo: # section hatches
+        cr.set_line_width(1)
+        r=dispnfo[0] # first line
+        cr.move_to(r.x+r.tw+2,r.y-r.th/2+2)
+        cr.line_to(w,r.y-r.th/2+2)
+        cr.stroke()
       
     topL,botL = visible_lines_top_bottom(me.geditwin)
     scrollbar(lines,topL,botL,w,h,cr)
