@@ -59,19 +59,23 @@ def lines_add_section_len(lines):
   
 def text_extents(str,cr):
   "code around bug in older cairo"
-  try:
-    return cr.text_extents(str)
-  except MemoryError:
-    pass
+  #try:
+  #  return cr.text_extents(str)
+  #except MemoryError:
+  #  pass
     
-  x, y = cr.get_current_point()
-  cr.move_to(0,-5)
-  cr.show_text(str)
-  nx,ny = cr.get_current_point()
+  if str:
+    x, y = cr.get_current_point()
+    cr.move_to(0,-5)
+    cr.show_text(str)
+    nx,ny = cr.get_current_point()
+    cr.move_to(x,y)
+  else:
+    nx = 0
+    ny = 0
   
   #print repr(str),x,nx,y,ny
   ascent, descent, height, max_x_advance, max_y_advance = cr.font_extents()
-  cr.move_to(x,y)
   
   return 0, 0, nx, height, 0, 0
   
@@ -152,7 +156,7 @@ def visible_lines_top_bottom(geditwin):
   botiter, _ = view.get_line_at_y(rect.y+rect.height)
   return topiter.get_line(), botiter.get_line()
       
-def scrollbar(lines,topI,botI,w,h,cr,scrollbarW=15):
+def scrollbar(lines,topI,botI,w,h,cr,scrollbarW=10):
   "top and bot a passed as line indices"
   # figure out location
   topY = None
@@ -165,14 +169,26 @@ def scrollbar(lines,topI,botI,w,h,cr,scrollbarW=15):
       if line.i >= botI:
         botY = line.y
 
+  if 1: # bg rectangle     
+    cr.set_source_rgba(.1,.1,.1,.35)
+    cr.rectangle(w-scrollbarW,0,scrollbarW,topY)
+    cr.fill()
+    cr.rectangle(w-scrollbarW,botY,scrollbarW,h-botY)
+    cr.fill()
+    
   if 1: # scheme 1
-    cr.set_source_rgb(0,0,0)
-    cr.move_to(w-scrollbarW/2.,0)
-    cr.line_to(w-scrollbarW/2.,topY)
-    cr.stroke()
-    cr.move_to(w-scrollbarW/2.,botY)
-    cr.line_to(w-scrollbarW/2.,h)
-    cr.stroke()
+    cr.set_line_width(1)
+    #cr.set_source_rgb(0,0,0)
+    #cr.set_source_rgb(1,1,1)
+    cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.)
+    if 0: # big down line
+      cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.)
+      cr.move_to(w-scrollbarW/2.,0)
+      cr.line_to(w-scrollbarW/2.,topY)
+      cr.stroke()
+      cr.move_to(w-scrollbarW/2.,botY)
+      cr.line_to(w-scrollbarW/2.,h)
+      cr.stroke()
     if 0:
       cr.rectangle(w-scrollbarW,topY,scrollbarW-1,botY-topY)
       cr.stroke()
@@ -185,18 +201,13 @@ def scrollbar(lines,topI,botI,w,h,cr,scrollbarW=15):
       cr.move_to(0,botY)
       cr.line_to(w,botY)
       cr.stroke()
-    if 1: # rect
+    if 0: # rect
       cr.set_source_rgba(.5,.5,.5,.1)
       #cr.set_source_rgba(.1,.1,.1,.35)
       #cr.rectangle(w-scrollbarW,topY,scrollbarW,botY-topY)
       cr.rectangle(0,topY,w,botY-topY)
       cr.fill()
-        
-  if 0: # bg rectangle     
-    cr.set_source_rgba(.1,.1,.1,.35)
-    cr.rectangle(w-scrollbarW,0,scrollbarW,h)
-    cr.fill()
-
+    
   if 0: # view indicator  
     cr.set_source_rgba(.5,.5,.5,.5)
     #cr.set_source_rgba(.1,.1,.1,.35)
@@ -303,7 +314,7 @@ class TextmapView(gtk.VBox):
           _,_,tw,th,_,_= text_extents(line.raw,cr)
           #_,_,tw,th,_,_= cr.text_extents(line.raw)
           #print th
-          cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.)
+          cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.) # fg
           cr.show_text(line.raw)
           if downsampled:
             sofarH += lineH
@@ -322,18 +333,18 @@ class TextmapView(gtk.VBox):
         
     for line, lastH in sections:
     
-      cr.move_to(0, lastH)
-    
-      cr.set_line_width(1)
-      cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.)
-      #cr.move_to(0,rectH*i)
-      cr.line_to(w,lastH)
-      cr.stroke()
+      if 0: # section lines
+        cr.move_to(0, lastH)
+        cr.set_line_width(1)
+        cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.)
+        cr.line_to(w,lastH)
+        cr.stroke()
       
-      cr.move_to(0,lastH)
-      cr.set_font_size(12)
-      cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.)
-      fit_text(line.section,4*w/5,line.section_len*rectH,cr)
+      if 1: # section heading
+        cr.move_to(0,lastH)
+        cr.set_font_size(12)
+        cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.)
+        fit_text(line.section,4*w/5,line.section_len*rectH,cr)
       
     topL,botL = visible_lines_top_bottom(me.geditwin)
     scrollbar(lines,topL,botL,w,h,cr)
