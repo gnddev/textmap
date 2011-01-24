@@ -132,11 +132,11 @@ def fit_text(str, w, h, cr):
       break
   return rn
       
-def downsample_lines(lines, h):
+def downsample_lines(lines, h, max_scale=3):
   n = len(lines)
   
   # pick scale
-  for scale in (3,2,1): 
+  for scale in range(max_scale,0,-1): 
     maxlines_ = h/(.85*scale)
     if n < 1.5*maxlines_:
       break
@@ -371,20 +371,20 @@ class TextmapView(gtk.VBox):
     
     me.darea = darea
     #probj(me.darea)
-    
-    #doc.connect("cursor-moved", me.cursor_moved)
-    
+
+    me.connected = False
+        
     me.line_count = 0
     
     me.show_all()
     
-#   def cursor_moved(me, doc):
-#     new_line_count = doc.get_line_count()
-#     if new_line_count == me.line_count:
-#       return
-#     me.line_count = new_line_count
-#     
-#     refresh(me)
+  def cursor_moved(me, doc):
+    new_line_count = doc.get_line_count()
+    #print 'new_line_count',new_line_count
+    
+  def on_insert_text(me, doc, piter, text, len):
+    if len < 20:
+      print 'piter',piter,'text',repr(text),'len',len
     
   def button_press(me, widget, event):
     #print 'button_press',event.x, event.y
@@ -405,7 +405,12 @@ class TextmapView(gtk.VBox):
     #print 'expose',me.geditwin.get_active_tab().get_document().get_uri(),[d.get_uri() for d in me.geditwin.get_documents()]
     doc = me.geditwin.get_active_tab().get_document()
     
-    print doc
+    if not me.connected:
+      me.connected = True
+      doc.connect("cursor-moved", me.cursor_moved)
+      doc.connect("insert-text", me.on_insert_text)
+      
+    #print doc
     
     lines = document_lines(doc)
     try:
@@ -433,7 +438,12 @@ class TextmapView(gtk.VBox):
     cr.translate(margin,0)
     w -= margin
           
-    lines, scale, downsampled = downsample_lines(lines, h)
+    max_scale = 3
+    lines, scale, downsampled = downsample_lines(lines, h, max_scale=max_scale)
+    
+    stretch = False
+    if downsampled or scale < max_scale:
+      stretch = True
     
     lines = lines_add_section_len(lines)
     
@@ -442,7 +452,7 @@ class TextmapView(gtk.VBox):
     
     #print 'doc',doc.get_uri(), lines[0].raw
     
-    # display text silhouette
+    # ------------------------ display text silhouette ------------------------
     
     rectH = h/float(len(lines))
     sofarH= 0
@@ -458,12 +468,12 @@ class TextmapView(gtk.VBox):
           tw,th = text_extents(line.raw,cr)
           cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.) # fg
           cr.show_text(line.raw)
-          if downsampled:
+          if stretch:
             sofarH += lineH
           else:
             sofarH += th
         else:
-          if downsampled:
+          if stretch:
             sofarH += lineH
           else:
             sofarH += scale-1
@@ -473,7 +483,7 @@ class TextmapView(gtk.VBox):
         
       cr.move_to(0, sofarH)
         
-    # display sections
+    # ---------------------------- display sections ---------------------------
     
     for line, lastH in sections:
     
