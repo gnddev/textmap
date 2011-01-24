@@ -2,6 +2,7 @@ import gtk
 import gedit
 import sys
 import math
+import cairo
 
 class struct:pass
 
@@ -181,8 +182,13 @@ def scrollbar(lines,topI,botI,w,h,cr,scrollbarW=10):
     if not botY:
       if line.i >= botI:
         botY = line.y
+  
+  if topY is None:
+    topY = 0
+  if botY is None:
+    botY = lines[-1].y
 
-  if 1: # bg rectangle     
+  if 0: # bg rectangle     
     cr.set_source_rgba(.1,.1,.1,.35)
     cr.rectangle(w-scrollbarW,0,scrollbarW,topY)
     cr.fill()
@@ -221,7 +227,7 @@ def scrollbar(lines,topI,botI,w,h,cr,scrollbarW=10):
       cr.rectangle(0,topY,w,botY-topY)
       cr.fill()
       
-  if 1: # scheme 2
+  if 0: # scheme 2
     cr.set_line_width(3)
     cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.)
     if 1: # bottom lines
@@ -281,8 +287,65 @@ def scrollbar(lines,topI,botI,w,h,cr,scrollbarW=10):
     cr.line_to(w-scrollbarW,botY)
     cr.line_to(w,h)
     cr.stroke()
-  
     
+  if 0: # scheme 3
+  
+    if 1: # black lines
+      cr.set_line_width(2)
+      cr.set_source_rgb(0,0,0)
+      cr.move_to(0,topY)
+      cr.line_to(w,topY)
+      cr.stroke()
+      cr.move_to(0,botY)
+      cr.line_to(w,botY)
+      cr.stroke() 
+      
+    if 1: # white lines
+      cr.set_line_width(2)
+      cr.set_dash([1,2])
+      cr.set_source_rgb(1,1,1)
+      cr.move_to(0,topY)
+      cr.line_to(w,topY)
+      cr.stroke()
+      cr.move_to(0,botY)
+      cr.line_to(w,botY)
+      cr.stroke()   
+  
+  if 0: # scheme 4
+    pat = cairo.LinearGradient(0,topY-10,0,topY)
+    pat.add_color_stop_rgba(0, 1, 1, 1,1)
+    pat.add_color_stop_rgba(1, .2,.2,.2,1)
+    pat.add_color_stop_rgba(2, 0, 0, 0,1)
+    cr.rectangle(0,topY-10,w,10)
+    cr.set_source(pat)
+    cr.fill()
+    
+  if 1: # triangle
+    size=12
+    midY = topY+(botY-topY)/2
+    cr.set_line_width(2)
+    cr.set_source_rgb(1,1,1)
+    cr.move_to(w-size-1,midY)
+    cr.line_to(w-1,midY-size/2)
+    #cr.stroke_preserve()
+    cr.line_to(w-1,midY+size/2)
+    #cr.stroke_preserve()
+    cr.line_to(w-size-1,midY)
+    cr.fill()
+    cr.move_to(w-2,topY+2)
+    cr.line_to(w-2,botY-2)
+    cr.stroke()
+    
+  if 1: # scheme 5
+    cr.set_line_width(2)
+    cr.set_source_rgb(1,1,1)
+    cr.set_dash([8,8])
+    #cr.rectangle(2,topY,w-4,botY-topY)
+    cr.move_to(4,topY); cr.line_to(w,topY)
+    cr.stroke()
+    cr.move_to(4,botY); cr.line_to(w,botY)
+    cr.stroke()
+        
 def refresh(textmapview):
   try:
     win = textmapview.darea.get_window()
@@ -308,10 +371,23 @@ class TextmapView(gtk.VBox):
     
     me.darea = darea
     #probj(me.darea)
+    
+    #doc.connect("cursor-moved", me.cursor_moved)
+    
+    me.line_count = 0
+    
     me.show_all()
     
+#   def cursor_moved(me, doc):
+#     new_line_count = doc.get_line_count()
+#     if new_line_count == me.line_count:
+#       return
+#     me.line_count = new_line_count
+#     
+#     refresh(me)
+    
   def button_press(me, widget, event):
-    print 'button_press',event.x, event.y
+    #print 'button_press',event.x, event.y
     for line in me.lines:
       if line.y > event.y:
         break
@@ -319,12 +395,18 @@ class TextmapView(gtk.VBox):
     view = me.geditwin.get_active_view()
     doc = me.geditwin.get_active_tab().get_document()
     doc.place_cursor(doc.get_iter_at_line_index(line.i,0))
+    
     view.scroll_to_cursor()
+    #print view
+    
     refresh(me)
     
   def expose(me, widget, event):
     #print 'expose',me.geditwin.get_active_tab().get_document().get_uri(),[d.get_uri() for d in me.geditwin.get_documents()]
     doc = me.geditwin.get_active_tab().get_document()
+    
+    print doc
+    
     lines = document_lines(doc)
     try:
       win = widget.get_window()
@@ -346,6 +428,11 @@ class TextmapView(gtk.VBox):
     if not lines:
       return
       
+    # translate everthing in
+    margin = 3
+    cr.translate(margin,0)
+    w -= margin
+          
     lines, scale, downsampled = downsample_lines(lines, h)
     
     lines = lines_add_section_len(lines)
@@ -411,12 +498,17 @@ class TextmapView(gtk.VBox):
         cr.stroke()
       
     topL,botL = visible_lines_top_bottom(me.geditwin)
+    
+    # translate back for the scroll bar
+    cr.translate(-margin,0)
+    w += margin
+    
     scrollbar(lines,topL,botL,w,h,cr)
       
     me.lines = lines
       
         
-class ExamplePyWindowHelper:
+class TextmapWindowHelper:
   def __init__(me, plugin, window):
     me.window = window
     me.plugin = plugin
@@ -438,13 +530,13 @@ class ExamplePyWindowHelper:
   def update_ui(me):
     refresh(me.textmapview)
     
-class ExamplePyPlugin(gedit.Plugin):
+class TextmapPlugin(gedit.Plugin):
   def __init__(me):
     gedit.Plugin.__init__(me)
     me._instances = {}
 
   def activate(me, window):
-    me._instances[window] = ExamplePyWindowHelper(me, window)
+    me._instances[window] = TextmapWindowHelper(me, window)
 
   def deactivate(me, window):
     if window in me._instances:
