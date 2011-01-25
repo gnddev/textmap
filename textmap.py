@@ -138,7 +138,7 @@ def downsample_lines(lines, h, max_scale=3):
   # pick scale
   for scale in range(max_scale,0,-1): 
     maxlines_ = h/(.85*scale)
-    if n < 1.5*maxlines_:
+    if n < 1.8*maxlines_:
       break
       
   if n <= maxlines_:
@@ -373,6 +373,7 @@ class TextmapView(gtk.VBox):
     #probj(me.darea)
 
     me.connected = False
+    me.draw_scrollbar_only = False
         
     me.line_count = 0
     
@@ -383,7 +384,7 @@ class TextmapView(gtk.VBox):
     #print 'new_line_count',new_line_count
     
   def on_insert_text(me, doc, piter, text, len):
-    if len < 20:
+    if len < 20 and '\n' in text:
       print 'piter',piter,'text',repr(text),'len',len
     
   def button_press(me, widget, event):
@@ -401,6 +402,11 @@ class TextmapView(gtk.VBox):
     
     refresh(me)
     
+  def on_scroll_event(me,view,event):
+    #print 'scroll',view,event
+    me.draw_scrollbar_only = True
+    refresh(me)
+    
   def expose(me, widget, event):
     #print 'expose',me.geditwin.get_active_tab().get_document().get_uri(),[d.get_uri() for d in me.geditwin.get_documents()]
     doc = me.geditwin.get_active_tab().get_document()
@@ -409,6 +415,8 @@ class TextmapView(gtk.VBox):
       me.connected = True
       doc.connect("cursor-moved", me.cursor_moved)
       doc.connect("insert-text", me.on_insert_text)
+      view = me.geditwin.get_active_view()
+      view.connect("scroll-event", me.on_scroll_event)
       
     #print doc
     
@@ -421,101 +429,113 @@ class TextmapView(gtk.VBox):
     cr = widget.window.cairo_create()
     
     #probj(cr)
-       
-    # bg
-    if 1:
-      cr.set_source_rgb(46/256.,52/256.,54/256.)
-      cr.move_to(0,0)
-      cr.rectangle(0,0,w,h)
-      cr.fill()
-      cr.move_to(0,0)
     
-    if not lines:
-      return
-      
-    # translate everthing in
-    margin = 3
-    cr.translate(margin,0)
-    w -= margin
-          
-    max_scale = 3
-    lines, scale, downsampled = downsample_lines(lines, h, max_scale=max_scale)
-    
-    stretch = False
-    if downsampled or scale < max_scale:
-      stretch = True
-    
-    lines = lines_add_section_len(lines)
-    
-    n = len(lines)
-    lineH = h/n
-    
-    #print 'doc',doc.get_uri(), lines[0].raw
-    
-    # ------------------------ display text silhouette ------------------------
-    
-    rectH = h/float(len(lines))
-    sofarH= 0
-    sections = []
-    for i, line in enumerate(lines):
-    
-      line.y = sofarH
-      # text
+    if not me.draw_scrollbar_only:
+     
+      cr.push_group()
+        
+      # bg
       if 1:
-        lastH = sofarH
-        cr.set_font_size(scale)
-        if line.raw.strip():
-          tw,th = text_extents(line.raw,cr)
-          cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.) # fg
-          cr.show_text(line.raw)
-          if stretch:
-            sofarH += lineH
-          else:
-            sofarH += th
-        else:
-          if stretch:
-            sofarH += lineH
-          else:
-            sofarH += scale-1
-        
-      if line.section:
-        sections.append((line, lastH))
-        
-      cr.move_to(0, sofarH)
-        
-    # ---------------------------- display sections ---------------------------
-    
-    for line, lastH in sections:
-    
-      if 0: # section lines
-        cr.move_to(0, lastH)
-        cr.set_line_width(1)
-        cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.)
-        cr.line_to(w,lastH)
-        cr.stroke()
+        cr.set_source_rgb(46/256.,52/256.,54/256.)
+        cr.move_to(0,0)
+        cr.rectangle(0,0,w,h)
+        cr.fill()
+        cr.move_to(0,0)
       
-      if 1: # section heading
-        cr.move_to(0,lastH)
-        cr.set_font_size(12)
-        cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.)
-        dispnfo = fit_text(line.section,4*w/5,line.section_len*rectH,cr)
+      if not lines:
+        return
         
-      if 0 and dispnfo: # section hatches
-        cr.set_line_width(1)
-        r=dispnfo[0] # first line
-        cr.move_to(r.x+r.tw+2,r.y-r.th/2+2)
-        cr.line_to(w,r.y-r.th/2+2)
-        cr.stroke()
+      # translate everthing in
+      margin = 3
+      cr.translate(margin,0)
+      w -= margin
+            
+      max_scale = 3
+      lines, scale, downsampled = downsample_lines(lines, h, max_scale=max_scale)
       
+      stretch = False
+      if downsampled or scale < max_scale:
+        stretch = True
+      
+      lines = lines_add_section_len(lines)
+      
+      n = len(lines)
+      lineH = h/n
+      
+      #print 'doc',doc.get_uri(), lines[0].raw
+      
+      # ------------------------ display text silhouette ------------------------
+      
+      rectH = h/float(len(lines))
+      sofarH= 0
+      sections = []
+      for i, line in enumerate(lines):
+      
+        line.y = sofarH
+        # text
+        if 1:
+          lastH = sofarH
+          cr.set_font_size(scale)
+          if line.raw.strip():
+            tw,th = text_extents(line.raw,cr)
+            cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.) # fg
+            cr.show_text(line.raw)
+            if stretch:
+              sofarH += lineH
+            else:
+              sofarH += th
+          else:
+            if stretch:
+              sofarH += lineH
+            else:
+              sofarH += scale-1
+          
+        if line.section:
+          sections.append((line, lastH))
+          
+        cr.move_to(0, sofarH)
+          
+      # ---------------------------- display sections ---------------------------
+      
+      for line, lastH in sections:
+      
+        if 0: # section lines
+          cr.move_to(0, lastH)
+          cr.set_line_width(1)
+          cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.)
+          cr.line_to(w,lastH)
+          cr.stroke()
+        
+        if 1: # section heading
+          cr.move_to(0,lastH)
+          cr.set_font_size(12)
+          cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.)
+          dispnfo = fit_text(line.section,4*w/5,line.section_len*rectH,cr)
+          
+        if 0 and dispnfo: # section hatches
+          cr.set_line_width(1)
+          r=dispnfo[0] # first line
+          cr.move_to(r.x+r.tw+2,r.y-r.th/2+2)
+          cr.line_to(w,r.y-r.th/2+2)
+          cr.stroke()
+        
+      # translate back for the scroll bar
+      cr.translate(-margin,0)
+      w += margin
+      me.surface = cr.pop_group()
+      me.lines = lines
+
+    cr.set_source(me.surface)
+    cr.rectangle(0,0,w,h)
+    cr.fill()
+          
+    # ------------------------------- scrollbar -------------------------------
+    
     topL,botL = visible_lines_top_bottom(me.geditwin)
     
-    # translate back for the scroll bar
-    cr.translate(-margin,0)
-    w += margin
-    
-    scrollbar(lines,topL,botL,w,h,cr)
+    scrollbar(me.lines,topL,botL,w,h,cr)
       
-    me.lines = lines
+    me.draw_scrollbar_only = False
       
         
 class TextmapWindowHelper:
