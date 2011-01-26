@@ -15,14 +15,16 @@ def indent(s):
       break
   return x
   
-def probj(ob):
+def probj(ob,substr=None):
   meths = dir(ob)
   meths.sort()
+  if substr:
+    meths = [s for s in meths if substr in s]
   for i, m in enumerate(meths):
-    print '%-26s'%m,
-    if i and i%3==0:
+    if i%2==0:
       print
-  print ob
+    print '%-40s'%m,
+  print
 
 def document_lines(document):
   if not document:
@@ -166,8 +168,8 @@ def downsample_lines(lines, h, max_scale=3):
 def visible_lines_top_bottom(geditwin):
   view = geditwin.get_active_view()
   rect = view.get_visible_rect()
-  topiter, _ = view.get_line_at_y(rect.y)
-  botiter, _ = view.get_line_at_y(rect.y+rect.height)
+  topiter = view.get_line_at_y(rect.y)[0]
+  botiter = view.get_line_at_y(rect.y+rect.height)[0]
   return topiter.get_line(), botiter.get_line()
       
 def scrollbar(lines,topI,botI,w,h,cr,scrollbarW=10):
@@ -320,7 +322,8 @@ def scrollbar(lines,topI,botI,w,h,cr,scrollbarW=10):
     cr.set_source(pat)
     cr.fill()
     
-  if 1: # triangle
+  if 0: # triangle right
+    # triangle
     size=12
     midY = topY+(botY-topY)/2
     cr.set_line_width(2)
@@ -332,11 +335,30 @@ def scrollbar(lines,topI,botI,w,h,cr,scrollbarW=10):
     #cr.stroke_preserve()
     cr.line_to(w-size-1,midY)
     cr.fill()
+    # line
     cr.move_to(w-2,topY+2)
     cr.line_to(w-2,botY-2)
     cr.stroke()
     
-  if 1: # scheme 5
+  if 1: # triangle left
+    # triangle
+    size=12
+    midY = topY+(botY-topY)/2
+    cr.set_line_width(2)
+    cr.set_source_rgb(1,1,1)
+    cr.move_to(size+1,midY)
+    cr.line_to(1,midY-size/2)
+    #cr.stroke_preserve()
+    cr.line_to(1,midY+size/2)
+    #cr.stroke_preserve()
+    cr.line_to(size+1,midY)
+    cr.fill()
+    # line
+    cr.move_to(2,topY+2)
+    cr.line_to(2,botY-2)
+    cr.stroke()
+    
+  if 1: # dashed lines
     cr.set_line_width(2)
     cr.set_source_rgb(1,1,1)
     cr.set_dash([8,8])
@@ -374,14 +396,20 @@ class TextmapView(gtk.VBox):
 
     me.connected = False
     me.draw_scrollbar_only = False
-        
+    me.topL = None
+    me.surface_textmap = None
+    
     me.line_count = 0
     
     me.show_all()
     
-  def cursor_moved(me, doc):
-    new_line_count = doc.get_line_count()
+  def on_doc_cursor_moved(me, doc):
+    #new_line_count = doc.get_line_count()
     #print 'new_line_count',new_line_count
+    topL = visible_lines_top_bottom(me.geditwin)[0]
+    if topL <> me.topL:
+      refresh(me)
+      me.draw_scrollbar_only = True
     
   def on_insert_text(me, doc, piter, text, len):
     if len < 20 and '\n' in text:
@@ -413,9 +441,10 @@ class TextmapView(gtk.VBox):
     
     if not me.connected:
       me.connected = True
-      doc.connect("cursor-moved", me.cursor_moved)
+      doc.connect("cursor-moved", me.on_doc_cursor_moved)
       doc.connect("insert-text", me.on_insert_text)
       view = me.geditwin.get_active_view()
+      #probj(view,'get')
       view.connect("scroll-event", me.on_scroll_event)
       
     #print doc
@@ -430,7 +459,7 @@ class TextmapView(gtk.VBox):
     
     #probj(cr)
     
-    if not me.draw_scrollbar_only:
+    if me.surface_textmap is None or not me.draw_scrollbar_only:
      
       cr.push_group()
         
@@ -522,10 +551,10 @@ class TextmapView(gtk.VBox):
       # translate back for the scroll bar
       cr.translate(-margin,0)
       w += margin
-      me.surface = cr.pop_group()
+      me.surface_textmap = cr.pop_group() # everything but the scrollbar
       me.lines = lines
 
-    cr.set_source(me.surface)
+    cr.set_source(me.surface_textmap)
     cr.rectangle(0,0,w,h)
     cr.fill()
           
@@ -534,7 +563,8 @@ class TextmapView(gtk.VBox):
     topL,botL = visible_lines_top_bottom(me.geditwin)
     
     scrollbar(me.lines,topL,botL,w,h,cr)
-      
+    
+    me.topL = topL
     me.draw_scrollbar_only = False
       
         
