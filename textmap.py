@@ -20,11 +20,9 @@ def probj(ob,substr=None):
   meths.sort()
   if substr:
     meths = [s for s in meths if substr in s]
+  print ob,type(ob)
   for i, m in enumerate(meths):
-    if i%2==0:
-      print
-    print '%-40s'%m,
-  print
+    print '%40s'%m
 
 def document_lines(document):
   if not document:
@@ -82,11 +80,16 @@ def text_extents(str,cr):
   
   return nx, height
   
-def fit_text(str, w, h, cr):
+def fit_text(str, w, h, fg, bg, cr):
   moved_down = False
   originalx,_ = cr.get_current_point()
   sofarH = 0
   rn = []
+  if dark(*bg):
+    bg_rect_C = lighten(.1,*bg)
+  else:
+    bg_rect_C = darken(.1,*bg)
+    
   while 1:
     # find the next chunk of the string that fits
     for i in range(len(str)):
@@ -106,7 +109,8 @@ def fit_text(str, w, h, cr):
       
     # bg rectangle
     x,y = cr.get_current_point()
-    cr.set_source_rgba(46/256.,52/256.,54/256.,.75)
+    #cr.set_source_rgba(46/256.,52/256.,54/256.,.75)
+    cr.set_source_rgba(bg_rect_C[0],bg_rect_C[1],bg_rect_C[2],.75)
     if str:
       cr.rectangle(x,y-th+2,tw,th+6)
     else: # last line does not need a very big rectangle
@@ -115,7 +119,7 @@ def fit_text(str, w, h, cr):
     cr.move_to(x,y)
     
     # actually display
-    cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.)
+    cr.set_source_rgb(*fg)
     cr.show_text(disp)
     
     # remember
@@ -172,7 +176,20 @@ def visible_lines_top_bottom(geditwin):
   botiter = view.get_line_at_y(rect.y+rect.height)[0]
   return topiter.get_line(), botiter.get_line()
       
-def scrollbar(lines,topI,botI,w,h,cr,scrollbarW=10):
+def dark(r,g,b):
+  "return whether the color is light or dark"
+  if r+g+b < 1.5:
+    return True
+  else:
+    return False
+    
+def darken(fraction,r,g,b):
+  return r-fraction*r,g-fraction*g,b-fraction*b
+  
+def lighten(fraction,r,g,b):
+  return r+(1-r)*fraction,g+(1-g)*fraction,b+(1-b)*fraction
+  
+def scrollbar(lines,topI,botI,w,h,bg,cr,scrollbarW=10):
   "top and bot a passed as line indices"
   # figure out location
   topY = None
@@ -340,12 +357,17 @@ def scrollbar(lines,topI,botI,w,h,cr,scrollbarW=10):
     cr.line_to(w-2,botY-2)
     cr.stroke()
     
+  if dark(*bg):
+    color = (1,1,1)
+  else:
+    color = (0,0,0)
+    
   if 1: # triangle left
     # triangle
     size=12
     midY = topY+(botY-topY)/2
     cr.set_line_width(2)
-    cr.set_source_rgb(1,1,1)
+    cr.set_source_rgb(*color)
     cr.move_to(size+1,midY)
     cr.line_to(1,midY-size/2)
     #cr.stroke_preserve()
@@ -360,7 +382,7 @@ def scrollbar(lines,topI,botI,w,h,cr,scrollbarW=10):
     
   if 1: # dashed lines
     cr.set_line_width(2)
-    cr.set_source_rgb(1,1,1)
+    cr.set_source_rgb(*color)
     cr.set_dash([8,8])
     #cr.rectangle(2,topY,w-4,botY-topY)
     cr.move_to(4,topY); cr.line_to(w,topY)
@@ -368,7 +390,7 @@ def scrollbar(lines,topI,botI,w,h,cr,scrollbarW=10):
     cr.move_to(4,botY); cr.line_to(w,botY)
     cr.stroke()
         
-def refresh(textmapview):
+def queue_refresh(textmapview):
   try:
     win = textmapview.darea.get_window()
   except AttributeError:
@@ -376,6 +398,13 @@ def refresh(textmapview):
   if win:
     w,h = win.get_size()
     textmapview.darea.queue_draw_area(0,0,w,h)
+    
+def str2rgb(s):
+  assert s.startswith('#') and len(s)==7,('not a color string',s)
+  r = int(s[1:3],16)/256.
+  g = int(s[3:5],16)/256.
+  b = int(s[5:7],16)/256.
+  return r,g,b
       
 class TextmapView(gtk.VBox):
   def __init__(me, geditwin):
@@ -408,7 +437,7 @@ class TextmapView(gtk.VBox):
     #print 'new_line_count',new_line_count
     topL = visible_lines_top_bottom(me.geditwin)[0]
     if topL <> me.topL:
-      refresh(me)
+      queue_refresh(me)
       me.draw_scrollbar_only = True
     
   def on_insert_text(me, doc, piter, text, len):
@@ -428,12 +457,12 @@ class TextmapView(gtk.VBox):
     view.scroll_to_cursor()
     #print view
     
-    refresh(me)
+    queue_refresh(me)
     
   def on_scroll_event(me,view,event):
     #print 'scroll',view,event
     me.draw_scrollbar_only = True
-    refresh(me)
+    queue_refresh(me)
     
   def expose(me, widget, event):
     #print 'expose',me.geditwin.get_active_tab().get_document().get_uri(),[d.get_uri() for d in me.geditwin.get_documents()]
@@ -444,8 +473,14 @@ class TextmapView(gtk.VBox):
       doc.connect("cursor-moved", me.on_doc_cursor_moved)
       doc.connect("insert-text", me.on_insert_text)
       view = me.geditwin.get_active_view()
-      #probj(view,'get')
       view.connect("scroll-event", me.on_scroll_event)
+      
+    style = doc.get_style_scheme().get_style('text')
+    if style is None:
+      fg = (0,0,0)
+      bg = (1,1,1)
+    else:
+      fg,bg = map(str2rgb, style.get_properties('foreground','background'))
       
     #print doc
     
@@ -457,7 +492,7 @@ class TextmapView(gtk.VBox):
     w,h = map(float,win.get_size())
     cr = widget.window.cairo_create()
     
-    #probj(cr)
+    #probj(cr,'rgb')
     
     if me.surface_textmap is None or not me.draw_scrollbar_only:
      
@@ -465,7 +500,8 @@ class TextmapView(gtk.VBox):
         
       # bg
       if 1:
-        cr.set_source_rgb(46/256.,52/256.,54/256.)
+        #cr.set_source_rgb(46/256.,52/256.,54/256.)
+        cr.set_source_rgb(*bg)
         cr.move_to(0,0)
         cr.rectangle(0,0,w,h)
         cr.fill()
@@ -507,7 +543,8 @@ class TextmapView(gtk.VBox):
           cr.set_font_size(scale)
           if line.raw.strip():
             tw,th = text_extents(line.raw,cr)
-            cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.) # fg
+            #cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.) # fg
+            cr.set_source_rgb(*fg)
             cr.show_text(line.raw)
             if stretch:
               sofarH += lineH
@@ -531,15 +568,17 @@ class TextmapView(gtk.VBox):
         if 0: # section lines
           cr.move_to(0, lastH)
           cr.set_line_width(1)
-          cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.)
+          #cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.)
+          cr.set_source_rgb(*fg)
           cr.line_to(w,lastH)
           cr.stroke()
         
         if 1: # section heading
           cr.move_to(0,lastH)
           cr.set_font_size(12)
-          cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.)
-          dispnfo = fit_text(line.section,4*w/5,line.section_len*rectH,cr)
+          #cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.)
+          cr.set_source_rgb(*fg)
+          dispnfo = fit_text(line.section,4*w/5,line.section_len*rectH,fg,bg,cr)
           
         if 0 and dispnfo: # section hatches
           cr.set_line_width(1)
@@ -562,7 +601,7 @@ class TextmapView(gtk.VBox):
     
     topL,botL = visible_lines_top_bottom(me.geditwin)
     
-    scrollbar(me.lines,topL,botL,w,h,cr)
+    scrollbar(me.lines,topL,botL,w,h,bg,cr)
     
     me.topL = topL
     me.draw_scrollbar_only = False
@@ -588,7 +627,7 @@ class TextmapWindowHelper:
     me.textmapview = None
 
   def update_ui(me):
-    refresh(me.textmapview)
+    queue_refresh(me.textmapview)
     
 class TextmapPlugin(gedit.Plugin):
   def __init__(me):
