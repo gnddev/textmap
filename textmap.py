@@ -5,15 +5,21 @@ import math
 import cairo
 import re
 
+version = "0.1 beta"
+
 # ------------------------------------------------------------------------------
 # These regular expressions are applied in sequence ot each line, to determine
 # whether it is a section start or not
 
 SectionREs = (
-  re.compile('def\s*(\w+)\s*\('),                       # python method
-  re.compile('class\s*(\w+)\s*[(:]'),                   # python class 
-  re.compile('cdef\s*class\s*(\w+)\s*[(:]'),            # cython class
-  re.compile('cdef\s*(?:[\w\.]*?\**\s*)?(\w+)\s*\('),   # cython method
+  re.compile('def\s*(\w+)\s*\('),                          # python method
+  re.compile('class\s*(\w+)\s*[(:]'),                      # python class 
+  re.compile('cdef\s*class\s*(\w+)\s*[(:]'),               # cython class
+  re.compile('cdef\s*(?:[\w\.]*?\**\s*)?(\w+)\s*\('),      # cython method
+)
+
+SubsectionREs = (
+  re.compile('\s+def\s*(\w+)\s*\('),                       # python class method
 )
 
 # ------------------------------------------------------------------------------
@@ -44,8 +50,8 @@ def probj(ob,*substrs):
     if doprint:
       print '%40s'%m
       
-def match_section(str):
-  for r in SectionREs:
+def match_RE_list(str, REs):
+  for r in REs:
     m = r.match(str)
     if m:
       return m.groups()[0]
@@ -64,7 +70,10 @@ def document_lines(document):
     x.len = len(each)
     x.indent = indent(each)
     x.raw = each
-    x.section = match_section(x.raw)
+    x.section = match_RE_list(x.raw,SectionREs)
+    x.subsection = None
+    if not x.section:
+      x.subsection = match_RE_list(x.raw,SubsectionREs)
     ans.append(x)
   return ans
   
@@ -496,7 +505,6 @@ class TextmapView(gtk.VBox):
     queue_refresh(me)
     
   def expose(me, widget, event):
-    #print 'expose',me.geditwin.get_active_tab().get_document().get_uri(),[d.get_uri() for d in me.geditwin.get_documents()]
     doc = me.geditwin.get_active_tab().get_document()
     if not doc:   # nothing open yet
       return
@@ -513,17 +521,16 @@ class TextmapView(gtk.VBox):
     if id(view) not in me.connected:
       me.connected[id(view)] = True
       view.connect("scroll-event", me.on_scroll_event)
-      #tab = me.geditwin.get_active_tab()
-      #probj(tab,'scroll','adjustment')
-      #probj(tab)
-      #vadj = tab.get_focus_vadjustment()
-      #probj(vadj)
-      #me.geditwin.connect("scroll-child", lambda x,y,z: sys.write.stdount("on_XXX...\n"))
       
-    style = doc.get_style_scheme().get_style('text')
+    style = None
+    try:
+      style = doc.get_style_scheme().get_style('text')
+    except e:
+      print 'textmap :: warning :: could not get styles ::',str(e)
+      
     if style is None:
-      fg = (0,0,0)
-      bg = (1,1,1)
+      bg = (0,0,0)
+      fg = (1,1,1)
     else:
       fg,bg = map(str2rgb, style.get_properties('foreground','background'))
       
@@ -606,8 +613,19 @@ class TextmapView(gtk.VBox):
           
         cr.move_to(0, sofarH)
           
-      # ---------------------------- display sections ---------------------------
+      # ------------------- display sections and subsections  ------------------
       
+      # Subsections
+      
+      cr.set_line_width(1.5)
+      cr.set_source_rgb(*fg)
+      for line in lines:
+        if line.subsection:
+          cr.move_to(12,line.y)
+          cr.line_to(22,line.y)
+          cr.stroke()
+          
+      # Sections
       for line, lastH in sections:
       
         if 0: # section lines
@@ -631,8 +649,9 @@ class TextmapView(gtk.VBox):
           cr.move_to(r.x+r.tw+2,r.y-r.th/2+2)
           cr.line_to(w,r.y-r.th/2+2)
           cr.stroke()
-        
-      # translate back for the scroll bar
+          
+      # ------------------ translate back for the scroll bar ------------------
+      
       cr.translate(-margin,0)
       w += margin
       me.surface_textmap = cr.pop_group() # everything but the scrollbar
