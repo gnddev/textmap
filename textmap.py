@@ -181,8 +181,13 @@ def downsample_lines(lines, h, max_scale=3):
     if lines[i].section:  # keep sections
       lines[i].score = sys.maxint
       continue
-    lines[i].score = abs(lines[i].indent-lines[i-1].indent) \
-                     + abs(len(lines[i].raw)-len(lines[i-1].raw))
+      
+    if 0: # get rid of lines that are very different
+      lines[i].score = abs(lines[i].indent-lines[i-1].indent) \
+                       + abs(len(lines[i].raw)-len(lines[i-1].raw))
+    
+    if 1: # get rid of lines randomly
+      lines[i].score = hash(lines[i].raw)
                      
   scoresorted = sorted(lines, lambda x,y: cmp(x.score,y.score))
   erasures_ = int(math.ceil(n - maxlines_))
@@ -447,7 +452,7 @@ class TextmapView(gtk.VBox):
     me.darea = darea
     #probj(me.darea)
 
-    me.connected = False
+    me.connected = {}
     me.draw_scrollbar_only = False
     me.topL = None
     me.surface_textmap = None
@@ -496,17 +501,23 @@ class TextmapView(gtk.VBox):
     if not doc:   # nothing open yet
       return
     
-    if not me.connected:
-      me.connected = True
+    if id(doc) not in me.connected:
+      me.connected[id(doc)] = True
       doc.connect("cursor-moved", me.on_doc_cursor_moved)
       doc.connect("insert-text", me.on_insert_text)
-      view = me.geditwin.get_active_view()
+      
+    view = me.geditwin.get_active_view()
+    if not view:
+      return
+    
+    if id(view) not in me.connected:
+      me.connected[id(view)] = True
       view.connect("scroll-event", me.on_scroll_event)
-      tab = me.geditwin.get_active_tab()
+      #tab = me.geditwin.get_active_tab()
       #probj(tab,'scroll','adjustment')
-      probj(tab)
-      vadj = tab.get_focus_vadjustment()
-      probj(vadj)
+      #probj(tab)
+      #vadj = tab.get_focus_vadjustment()
+      #probj(vadj)
       #me.geditwin.connect("scroll-child", lambda x,y,z: sys.write.stdount("on_XXX...\n"))
       
     style = doc.get_style_scheme().get_style('text')
