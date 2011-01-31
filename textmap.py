@@ -3,6 +3,20 @@ import gedit
 import sys
 import math
 import cairo
+import re
+
+# ------------------------------------------------------------------------------
+# These regular expressions are applied in sequence ot each line, to determine
+# whether it is a section start or not
+
+SectionREs = (
+  re.compile('def\s*(\w+)\s*\('),                       # python method
+  re.compile('class\s*(\w+)\s*[(:]'),                   # python class 
+  re.compile('cdef\s*class\s*(\w+)\s*[(:]'),            # cython class
+  re.compile('cdef\s*(?:[\w\.]*?\**\s*)?(\w+)\s*\('),   # cython method
+)
+
+# ------------------------------------------------------------------------------
 
 class struct:pass
 
@@ -15,14 +29,27 @@ def indent(s):
       break
   return x
   
-def probj(ob,substr=None):
+def probj(ob,*substrs):
   meths = dir(ob)
   meths.sort()
-  if substr:
-    meths = [s for s in meths if substr in s]
   print ob,type(ob)
-  for i, m in enumerate(meths):
-    print '%40s'%m
+  for m in meths:
+    doprint=True
+    if substrs:
+      doprint=False
+      for s in substrs:
+        if s in m:
+          doprint=True
+          break
+    if doprint:
+      print '%40s'%m
+      
+def match_section(str):
+  for r in SectionREs:
+    m = r.match(str)
+    if m:
+      return m.groups()[0]
+  return None
 
 def document_lines(document):
   if not document:
@@ -37,10 +64,7 @@ def document_lines(document):
     x.len = len(each)
     x.indent = indent(each)
     x.raw = each
-    if x.indent == 0 and x.raw.startswith('def') or x.raw.startswith('class'):
-      x.section = x.raw.split(' ',1)[1].split('(')[0]
-    else:
-      x.section = None
+    x.section = match_section(x.raw)
     ans.append(x)
   return ans
   
@@ -441,10 +465,12 @@ class TextmapView(gtk.VBox):
       me.draw_scrollbar_only = True
     
   def on_insert_text(me, doc, piter, text, len):
-    if len < 20 and '\n' in text:
-      print 'piter',piter,'text',repr(text),'len',len
+    pass
+    #if len < 20 and '\n' in text:
+    #  print 'piter',piter,'text',repr(text),'len',len
     
   def button_press(me, widget, event):
+    print 'on_button_press...'
     #print 'button_press',event.x, event.y
     for line in me.lines:
       if line.y > event.y:
@@ -460,13 +486,15 @@ class TextmapView(gtk.VBox):
     queue_refresh(me)
     
   def on_scroll_event(me,view,event):
-    #print 'scroll',view,event
+    print 'on_scroll_event...'
     me.draw_scrollbar_only = True
     queue_refresh(me)
     
   def expose(me, widget, event):
     #print 'expose',me.geditwin.get_active_tab().get_document().get_uri(),[d.get_uri() for d in me.geditwin.get_documents()]
     doc = me.geditwin.get_active_tab().get_document()
+    if not doc:   # nothing open yet
+      return
     
     if not me.connected:
       me.connected = True
@@ -474,6 +502,12 @@ class TextmapView(gtk.VBox):
       doc.connect("insert-text", me.on_insert_text)
       view = me.geditwin.get_active_view()
       view.connect("scroll-event", me.on_scroll_event)
+      tab = me.geditwin.get_active_tab()
+      #probj(tab,'scroll','adjustment')
+      probj(tab)
+      vadj = tab.get_focus_vadjustment()
+      probj(vadj)
+      #me.geditwin.connect("scroll-child", lambda x,y,z: sys.write.stdount("on_XXX...\n"))
       
     style = doc.get_style_scheme().get_style('text')
     if style is None:
