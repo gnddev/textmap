@@ -617,12 +617,17 @@ class TextmapView(gtk.VBox):
       
       # Subsections
       
+      cr.new_path()
       cr.set_line_width(1.5)
       cr.set_source_rgb(*fg)
+      subsW = 10
+      subsmargin = 10
       for line in lines:
         if line.subsection:
-          cr.move_to(12,line.y)
-          cr.line_to(22,line.y)
+          if 0:
+            cr.move_to(subsmargin,line.y)
+            cr.line_to(subsmargin+subsW,line.y)
+          cr.arc(subsmargin,line.y+3,3,0,6.28)
           cr.stroke()
           
       # Sections
