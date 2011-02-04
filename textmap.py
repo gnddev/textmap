@@ -1,3 +1,19 @@
+# Copyright 2011, Dan Gindikin <dgindikin@gmail.com>
+#
+# This program is free software; you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation; either version 2 of the License, or (at your option) any later
+# version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+# details.
+#
+# You should have received a copy of the GNU General Public License along with
+# this program; if not, write to the Free Software Foundation, Inc., 51
+# Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+
 import gtk
 import gedit
 import sys
@@ -20,6 +36,7 @@ SectionREs = (
 
 SubsectionREs = (
   re.compile('\s+def\s*(\w+)\s*\('),                       # python class method
+  re.compile('\s+cdef\s*(?:[\w\.]*?\**\s*)?(\w+)\s*\('),   # cython class method
 )
 
 # ------------------------------------------------------------------------------
@@ -145,7 +162,7 @@ def fit_text(str, w, h, fg, bg, cr):
     #cr.set_source_rgba(46/256.,52/256.,54/256.,.75)
     cr.set_source_rgba(bg_rect_C[0],bg_rect_C[1],bg_rect_C[2],.75)
     if str:
-      cr.rectangle(x,y-th+2,tw,th+6)
+      cr.rectangle(x,y-th+2,tw,th+3)
     else: # last line does not need a very big rectangle
       cr.rectangle(x,y-th+2,tw,th)    
     cr.fill()
@@ -189,14 +206,14 @@ def downsample_lines(lines, h, max_scale=3):
   for i in range(1, len(lines)):
     if lines[i].section:  # keep sections
       lines[i].score = sys.maxint
-      continue
-      
-    if 0: # get rid of lines that are very different
-      lines[i].score = abs(lines[i].indent-lines[i-1].indent) \
-                       + abs(len(lines[i].raw)-len(lines[i-1].raw))
-    
-    if 1: # get rid of lines randomly
-      lines[i].score = hash(lines[i].raw)
+    elif lines[i].subsection:
+      lines[i].score = sys.maxint/2
+    else:
+      if 0: # get rid of lines that are very different
+        lines[i].score = abs(lines[i].indent-lines[i-1].indent) \
+                         + abs(len(lines[i].raw)-len(lines[i-1].raw))
+      if 1: # get rid of lines randomly
+        lines[i].score = hash(lines[i].raw)
                      
   scoresorted = sorted(lines, lambda x,y: cmp(x.score,y.score))
   erasures_ = int(math.ceil(n - maxlines_))
@@ -455,6 +472,7 @@ class TextmapView(gtk.VBox):
     
     darea.add_events(gtk.gdk.BUTTON_PRESS_MASK)
     darea.connect("button-press-event", me.button_press)
+    darea.connect("scroll-event", me.on_darea_scroll_event)
     
     me.pack_start(darea, True, True)
     
@@ -469,6 +487,11 @@ class TextmapView(gtk.VBox):
     me.line_count = 0
     
     me.show_all()
+    
+  def on_darea_scroll_event(me, widget, event):
+    #print 'XXX on_darea_scroll_event'
+    # somehow pass this on, scroll the document/view
+    pass
     
   def on_doc_cursor_moved(me, doc):
     #new_line_count = doc.get_line_count()
@@ -525,8 +548,8 @@ class TextmapView(gtk.VBox):
     style = None
     try:
       style = doc.get_style_scheme().get_style('text')
-    except e:
-      print 'textmap :: warning :: could not get styles ::',str(e)
+    except:
+      pass  # probably an older version of gedit, not style schemes yet
       
     if style is None:
       bg = (0,0,0)
@@ -627,7 +650,7 @@ class TextmapView(gtk.VBox):
           if 0:
             cr.move_to(subsmargin,line.y)
             cr.line_to(subsmargin+subsW,line.y)
-          cr.arc(subsmargin,line.y+3,3,0,6.28)
+          cr.arc(subsmargin,line.y+3,2,0,6.28)
           cr.stroke()
           
       # Sections
@@ -688,7 +711,6 @@ class TextmapWindowHelper:
     me.ui_id = panel.add_item(me.textmapview, "TextMap", image)
     
     me.panel = panel
-    #probj(me.panel)
 
   def deactivate(me):
     me.window = None
