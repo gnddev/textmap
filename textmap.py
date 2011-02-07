@@ -507,7 +507,7 @@ class TextmapView(gtk.VBox):
     #  print 'piter',piter,'text',repr(text),'len',len
     
   def button_press(me, widget, event):
-    print 'on_button_press...'
+    #print 'on_button_press...'
     #print 'button_press',event.x, event.y
     for line in me.lines:
       if line.y > event.y:
@@ -523,9 +523,14 @@ class TextmapView(gtk.VBox):
     queue_refresh(me)
     
   def on_scroll_event(me,view,event):
-    print 'on_scroll_event...'
+    #print 'on_scroll_event...'
     me.draw_scrollbar_only = True
     queue_refresh(me)
+    
+  def on_search_highlight_updated(me,doc,t,u):
+    #print 'on_search_highlight_updated:'
+    #print t.get_line(),u.get_line()
+    pass
     
   def expose(me, widget, event):
     doc = me.geditwin.get_active_tab().get_document()
@@ -536,6 +541,7 @@ class TextmapView(gtk.VBox):
       me.connected[id(doc)] = True
       doc.connect("cursor-moved", me.on_doc_cursor_moved)
       doc.connect("insert-text", me.on_insert_text)
+      doc.connect("search-highlight-updated", me.on_search_highlight_updated)
       
     view = me.geditwin.get_active_view()
     if not view:
