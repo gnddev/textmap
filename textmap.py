@@ -460,6 +460,34 @@ def str2rgb(s):
   g = int(s[3:5],16)/256.
   b = int(s[5:7],16)/256.
   return r,g,b
+  
+def mark_changed_lines(original,current):
+  
+  # assume to start everything was changed
+  for line in current:
+    line.changed = True
+  
+  # now go through and find original lines in current
+  original_lines_found = []
+  i=0
+  j=0
+  while i < len(original):
+    jj=j
+    while jj < len(current):
+      if original[i].raw == current[jj].raw: # Found it!
+        original_lines_found.append(jj)
+        j = jj + 1   # only search through current line from this point forward
+        break
+      jj += 1
+    i+=1   # whether original[i] was found or not, we are done with it
+
+  # mark all the unchanged lines we found
+  for j in original_lines_found:
+    current[j].changed = False
+    
+  #print original_lines_found,len(original),len(current)
+        
+  return current
       
 class TextmapView(gtk.VBox):
   def __init__(me, geditwin):
@@ -485,6 +513,8 @@ class TextmapView(gtk.VBox):
     me.surface_textmap = None
     
     me.line_count = 0
+    
+    me.doc_attached_data = {}
     
     me.show_all()
     
@@ -562,10 +592,10 @@ class TextmapView(gtk.VBox):
       fg = (1,1,1)
     else:
       fg,bg = map(str2rgb, style.get_properties('foreground','background'))
+    changeCLR = (0,1,1)
       
     #print doc
-    
-    lines = document_lines(doc)
+       
     try:
       win = widget.get_window()
     except AttributeError:
@@ -575,10 +605,25 @@ class TextmapView(gtk.VBox):
     
     #probj(cr,'rgb')
     
+    # Are we drawing everything, or just the scrollbar?
     if me.surface_textmap is None or not me.draw_scrollbar_only:
+    
+      lines = document_lines(doc)
+      
+      if id(doc) not in me.doc_attached_data:
+        docrec = struct()
+        me.doc_attached_data[id(doc)] = docrec
+        docrec.original_lines = None # we skip the first one, its empty
+        for l in lines:
+          l.changed = False
+      else:
+        docrec = me.doc_attached_data[id(doc)]
+        if docrec.original_lines == None:
+          docrec.original_lines = lines
+        lines = mark_changed_lines(docrec.original_lines, lines)
      
       cr.push_group()
-        
+      
       # bg
       if 1:
         #cr.set_source_rgb(46/256.,52/256.,54/256.)
@@ -594,7 +639,7 @@ class TextmapView(gtk.VBox):
       # translate everthing in
       margin = 3
       cr.translate(margin,0)
-      w -= margin
+      w -= margin # an d here
             
       max_scale = 3
       lines, scale, downsampled = downsample_lines(lines, h, max_scale=max_scale)
@@ -684,10 +729,21 @@ class TextmapView(gtk.VBox):
           cr.line_to(w,r.y-r.th/2+2)
           cr.stroke()
           
-      # ------------------ translate back for the scroll bar ------------------
+      # ------------------ translate back for the scroll bar -------------------
       
       cr.translate(-margin,0)
       w += margin
+
+      # -------------------------- mark changed lines --------------------------
+      
+      cr.set_source_rgb(*changeCLR)
+      for line in lines:
+        if not line.changed:
+          continue
+        cr.rectangle(1,line.y-2,margin-1,5)
+        cr.fill()
+      
+      # save
       me.surface_textmap = cr.pop_group() # everything but the scrollbar
       me.lines = lines
 
