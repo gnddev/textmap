@@ -214,7 +214,7 @@ def downsample_lines(lines, h, max_scale=3):
   # pick scale
   for scale in range(max_scale,0,-1): 
     maxlines_ = h/(.85*scale)
-    if n < 3*maxlines_:
+    if n < 2*maxlines_:
       break
       
   if n <= maxlines_:
@@ -228,7 +228,7 @@ def downsample_lines(lines, h, max_scale=3):
       lines[i].score = sys.maxint
     elif lines[i].subsection:
       lines[i].score = sys.maxint/2
-    elif lines[i].changed:
+    elif lines[i].changed or lines[i].search_match:
       lines[i].score = sys.maxint/2
     else:
       if 0: # get rid of lines that are very different
@@ -506,6 +506,14 @@ def mark_changed_lines(original,current):
 
   return current
       
+def lines_mark_search_matches(lines,drec):
+  for line in lines:
+    if drec.search_text and drec.search_text in line.raw:
+      line.search_match = True
+    else:
+      line.search_match = False
+  return lines
+      
 class TextmapView(gtk.VBox):
   def __init__(me, geditwin):
     gtk.VBox.__init__(me)
@@ -575,9 +583,12 @@ class TextmapView(gtk.VBox):
     queue_refresh(me)
     
   def on_search_highlight_updated(me,doc,t,u):
-    #print 'on_search_highlight_updated:'
-    #print t.get_line(),u.get_line()
-    pass
+    #print 'on_search_highlight_updated:',repr(doc.get_search_text())
+    drec = me.doc_attached_data[id(doc)]
+    s = doc.get_search_text()[0]
+    if s <> drec.search_text:
+      drec.search_text = s
+      queue_refresh(me)    
     
   def expose(me, widget, event):
     doc = me.geditwin.get_active_tab().get_document()
@@ -610,6 +621,7 @@ class TextmapView(gtk.VBox):
     else:
       fg,bg = map(str2rgb, style.get_properties('foreground','background'))
     changeCLR = (1,0,1)
+    searchCLR = (0,1,0)
       
     #print doc
        
@@ -629,16 +641,19 @@ class TextmapView(gtk.VBox):
       lines = document_lines(doc)
       
       if id(doc) not in me.doc_attached_data:
-        docrec = struct()
-        me.doc_attached_data[id(doc)] = docrec
-        docrec.original_lines = None # we skip the first one, its empty
+        drec = struct()
+        me.doc_attached_data[id(doc)] = drec
+        drec.original_lines = None # we skip the first one, its empty
+        drec.search_text = None
         for l in lines:
           l.changed = False
       else:
-        docrec = me.doc_attached_data[id(doc)]
-        if docrec.original_lines == None:
-          docrec.original_lines = copy.deepcopy(lines)
-        lines = mark_changed_lines(docrec.original_lines, lines)
+        drec = me.doc_attached_data[id(doc)]
+        if drec.original_lines == None:
+          drec.original_lines = lines #copy.deepcopy(lines)
+        lines = mark_changed_lines(drec.original_lines, lines)
+        
+      lines = lines_mark_search_matches(lines,drec)
      
       cr.push_group()
       
@@ -688,11 +703,16 @@ class TextmapView(gtk.VBox):
           cr.set_font_size(scale)
           if line.raw.strip():
             tw,th = text_extents(line.raw,cr)
-            if line.changed:
+          
+            if line.search_match:
+              cr.set_source_rgb(*searchCLR)
+            elif line.changed:
               cr.set_source_rgb(*changeCLR)
             else:
               cr.set_source_rgb(*fg)
+            
             cr.show_text(line.raw)
+            
             if stretch:
               sofarH += lineH
             else:
@@ -762,13 +782,18 @@ class TextmapView(gtk.VBox):
       cr.translate(-margin,0)
       w += margin
 
-      # -------------------------- mark changed lines --------------------------
+      # -------------------------- mark lines markers --------------------------
             
-      cr.set_source_rgb(*changeCLR)
+
       for line in lines:
-        if not line.changed:
-          continue
-        cr.rectangle(w-3,line.y-2,2,5) # dan was here
+        if line.search_match:
+          clr = searchCLR
+        elif line.changed:
+          clr = changeCLR
+        else:
+          continue # nothing interesting has happened with this line
+        cr.set_source_rgb(*clr)      
+        cr.rectangle(w-3,line.y-2,2,5)
         cr.fill()
       
       # save
