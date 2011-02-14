@@ -506,9 +506,9 @@ def mark_changed_lines(original,current):
 
   return current
       
-def lines_mark_search_matches(lines,drec):
+def lines_mark_search_matches(lines,docrec):
   for line in lines:
-    if drec.search_text and drec.search_text in line.raw:
+    if docrec.search_text and docrec.search_text in line.raw:
       line.search_match = True
     else:
       line.search_match = False
@@ -584,10 +584,10 @@ class TextmapView(gtk.VBox):
     
   def on_search_highlight_updated(me,doc,t,u):
     #print 'on_search_highlight_updated:',repr(doc.get_search_text())
-    drec = me.doc_attached_data[id(doc)]
+    docrec = me.doc_attached_data[id(doc)]
     s = doc.get_search_text()[0]
-    if s <> drec.search_text:
-      drec.search_text = s
+    if s <> docrec.search_text:
+      docrec.search_text = s
       queue_refresh(me)    
     
   def expose(me, widget, event):
@@ -641,19 +641,19 @@ class TextmapView(gtk.VBox):
       lines = document_lines(doc)
       
       if id(doc) not in me.doc_attached_data:
-        drec = struct()
-        me.doc_attached_data[id(doc)] = drec
-        drec.original_lines = None # we skip the first one, its empty
-        drec.search_text = None
+        docrec = struct()
+        me.doc_attached_data[id(doc)] = docrec
+        docrec.original_lines = None # we skip the first one, its empty
+        docrec.search_text = None
         for l in lines:
           l.changed = False
       else:
-        drec = me.doc_attached_data[id(doc)]
-        if drec.original_lines == None:
-          drec.original_lines = lines #copy.deepcopy(lines)
-        lines = mark_changed_lines(drec.original_lines, lines)
+        docrec = me.doc_attached_data[id(doc)]
+        if docrec.original_lines == None:
+          docrec.original_lines = lines #copy.deepcopy(lines)
+        lines = mark_changed_lines(docrec.original_lines, lines)
         
-      lines = lines_mark_search_matches(lines,drec)
+      lines = lines_mark_search_matches(lines,docrec)
      
       cr.push_group()
       
