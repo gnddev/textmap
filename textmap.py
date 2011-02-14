@@ -20,6 +20,7 @@ import sys
 import math
 import cairo
 import re
+import copy
 
 version = "0.1 beta"
 
@@ -194,7 +195,7 @@ def downsample_lines(lines, h, max_scale=3):
   # pick scale
   for scale in range(max_scale,0,-1): 
     maxlines_ = h/(.85*scale)
-    if n < 1.8*maxlines_:
+    if n < 3*maxlines_:
       break
       
   if n <= maxlines_:
@@ -208,12 +209,16 @@ def downsample_lines(lines, h, max_scale=3):
       lines[i].score = sys.maxint
     elif lines[i].subsection:
       lines[i].score = sys.maxint/2
+    elif lines[i].changed:
+      lines[i].score = sys.maxint/2
     else:
       if 0: # get rid of lines that are very different
         lines[i].score = abs(lines[i].indent-lines[i-1].indent) \
                          + abs(len(lines[i].raw)-len(lines[i-1].raw))
       if 1: # get rid of lines randomly
         lines[i].score = hash(lines[i].raw)
+        if lines[i].score > sys.maxint/2:
+          lines[i].score -= sys.maxint/2
                      
   scoresorted = sorted(lines, lambda x,y: cmp(x.score,y.score))
   erasures_ = int(math.ceil(n - maxlines_))
@@ -463,30 +468,33 @@ def str2rgb(s):
   
 def mark_changed_lines(original,current):
   
-  # assume to start everything was changed
+  # assume to start everything was changed, except for empties
   for line in current:
-    line.changed = True
+    if not line.raw.strip():
+      line.changed = False
+    else:
+      line.changed = True
   
   # now go through and find original lines in current
   original_lines_found = []
-  i=0
-  j=0
-  while i < len(original):
-    jj=j
-    while jj < len(current):
-      if original[i].raw == current[jj].raw: # Found it!
-        original_lines_found.append(jj)
-        j = jj + 1   # only search through current line from this point forward
+  
+  consumed_=0
+  for oline in original:
+    if not oline.raw.strip():
+      continue # skip empties, they are too confusing
+    for c in range(consumed_,len(current)):
+      if oline.raw == current[c].raw: # Found it!
+        original_lines_found.append(c)
+        consumed_ = c + 1   # only search through current line from this point forward
         break
-      jj += 1
-    i+=1   # whether original[i] was found or not, we are done with it
+      
 
   # mark all the unchanged lines we found
-  for j in original_lines_found:
-    current[j].changed = False
+  for c in original_lines_found:
+    current[c].changed = False
     
   #print original_lines_found,len(original),len(current)
-        
+
   return current
       
 class TextmapView(gtk.VBox):
@@ -592,7 +600,7 @@ class TextmapView(gtk.VBox):
       fg = (1,1,1)
     else:
       fg,bg = map(str2rgb, style.get_properties('foreground','background'))
-    changeCLR = (0,1,1)
+    changeCLR = (1,0,1)
       
     #print doc
        
@@ -606,6 +614,7 @@ class TextmapView(gtk.VBox):
     #probj(cr,'rgb')
     
     # Are we drawing everything, or just the scrollbar?
+            
     if me.surface_textmap is None or not me.draw_scrollbar_only:
     
       lines = document_lines(doc)
@@ -619,7 +628,7 @@ class TextmapView(gtk.VBox):
       else:
         docrec = me.doc_attached_data[id(doc)]
         if docrec.original_lines == None:
-          docrec.original_lines = lines
+          docrec.original_lines = copy.deepcopy(lines)
         lines = mark_changed_lines(docrec.original_lines, lines)
      
       cr.push_group()
@@ -649,7 +658,7 @@ class TextmapView(gtk.VBox):
         stretch = True
       
       lines = lines_add_section_len(lines)
-      
+
       n = len(lines)
       lineH = h/n
       
@@ -669,8 +678,10 @@ class TextmapView(gtk.VBox):
           cr.set_font_size(scale)
           if line.raw.strip():
             tw,th = text_extents(line.raw,cr)
-            #cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.) # fg
-            cr.set_source_rgb(*fg)
+            if line.changed:
+              cr.set_source_rgb(*changeCLR)
+            else:
+              cr.set_source_rgb(*fg)
             cr.show_text(line.raw)
             if stretch:
               sofarH += lineH
@@ -688,7 +699,7 @@ class TextmapView(gtk.VBox):
         cr.move_to(0, sofarH)
           
       # ------------------- display sections and subsections  ------------------
-      
+
       # Subsections
       
       cr.new_path()
@@ -735,12 +746,12 @@ class TextmapView(gtk.VBox):
       w += margin
 
       # -------------------------- mark changed lines --------------------------
-      
+            
       cr.set_source_rgb(*changeCLR)
       for line in lines:
         if not line.changed:
           continue
-        cr.rectangle(1,line.y-2,margin-1,5)
+        cr.rectangle(w-3,line.y-2,2,5) # dan was here
         cr.fill()
       
       # save
@@ -750,9 +761,9 @@ class TextmapView(gtk.VBox):
     cr.set_source(me.surface_textmap)
     cr.rectangle(0,0,w,h)
     cr.fill()
-          
+        
     # ------------------------------- scrollbar -------------------------------
-    
+
     topL,botL = visible_lines_top_bottom(me.geditwin)
     
     scrollbar(me.lines,topL,botL,w,h,bg,cr)
