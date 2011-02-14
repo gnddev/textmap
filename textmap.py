@@ -108,7 +108,26 @@ def lines_add_section_len(lines):
   if line_prevsection:
     line_prevsection.section_len = counter
   return lines
-  
+
+def lines_mark_changed_sections(lines):
+  sec = None
+  subsec = None
+  for line in lines:
+    if line.section:
+      line.sectionchanged = False
+      sec = line
+      subsec = None
+    if line.subsection:
+      line.subsectionchanged = False
+      subsec = line
+    if line.changed:
+      if sec is not None:
+        sec.sectionchanged = True
+      if subsec is not None:
+        subsec.subsectionchanged = True
+  return lines
+        
+      
 def text_extents(str,cr):
   "code around bug in older cairo"
   #try:
@@ -125,7 +144,7 @@ def text_extents(str,cr):
   else:
     nx = 0
     ny = 0
-  
+
   #print repr(str),x,nx,y,ny
   ascent, descent, height, max_x_advance, max_y_advance = cr.font_extents()
   
@@ -475,25 +494,15 @@ def mark_changed_lines(original,current):
     else:
       line.changed = True
   
-  # now go through and find original lines in current
-  original_lines_found = []
-  
   consumed_=0
   for oline in original:
     if not oline.raw.strip():
       continue # skip empties, they are too confusing
     for c in range(consumed_,len(current)):
       if oline.raw == current[c].raw: # Found it!
-        original_lines_found.append(c)
+        current[c].changed = False
         consumed_ = c + 1   # only search through current line from this point forward
         break
-      
-
-  # mark all the unchanged lines we found
-  for c in original_lines_found:
-    current[c].changed = False
-    
-  #print original_lines_found,len(original),len(current)
 
   return current
       
@@ -594,7 +603,7 @@ class TextmapView(gtk.VBox):
       style = doc.get_style_scheme().get_style('text')
     except:
       pass  # probably an older version of gedit, not style schemes yet
-      
+    
     if style is None:
       bg = (0,0,0)
       fg = (1,1,1)
@@ -658,13 +667,14 @@ class TextmapView(gtk.VBox):
         stretch = True
       
       lines = lines_add_section_len(lines)
+      lines = lines_mark_changed_sections(lines)
 
       n = len(lines)
       lineH = h/n
       
       #print 'doc',doc.get_uri(), lines[0].raw
       
-      # ------------------------ display text silhouette ------------------------
+      # ------------------------ display text silhouette -----------------------
       
       rectH = h/float(len(lines))
       sofarH= 0
@@ -704,7 +714,6 @@ class TextmapView(gtk.VBox):
       
       cr.new_path()
       cr.set_line_width(1.5)
-      cr.set_source_rgb(*fg)
       subsW = 10
       subsmargin = 10
       for line in lines:
@@ -712,6 +721,10 @@ class TextmapView(gtk.VBox):
           if 0:
             cr.move_to(subsmargin,line.y)
             cr.line_to(subsmargin+subsW,line.y)
+          if line.subsectionchanged:
+            cr.set_source_rgb(*changeCLR)
+          else:
+            cr.set_source_rgb(*fg)
           cr.arc(subsmargin,line.y+3,2,0,6.28)
           cr.stroke()
           
@@ -730,8 +743,12 @@ class TextmapView(gtk.VBox):
           cr.move_to(0,lastH)
           cr.set_font_size(12)
           #cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.)
-          cr.set_source_rgb(*fg)
-          dispnfo = fit_text(line.section,4*w/5,line.section_len*rectH,fg,bg,cr)
+          #if line.sectionchanged:
+          #  cr.set_source_rgb(*changeCLR)
+          #else:
+          #  cr.set_source_rgb(*fg)
+          secfgCLR = changeCLR if line.sectionchanged else fg
+          dispnfo = fit_text(line.section,4*w/5,line.section_len*rectH,secfgCLR,bg,cr)
           
         if 0 and dispnfo: # section hatches
           cr.set_line_width(1)
