@@ -516,39 +516,17 @@ def mark_changed_lines(doc,original,current):
   
   # mark any original lines we find as unchanged
   start = doc.get_start_iter()
-  i=0
+  c=0
   for oline in original:
     end = doc.get_iter_at_mark(oline.mark)
     slice = doc.get_slice(start,end)
-    slice_lines_raw = slice.split('\n')
-    # see if the first one is the original line
-    if slice_lines_raw[0] == oline.raw:
-      current[i].changed = False
-    # forward through any new lines
-    i += len(slice_lines_raw) - 1 # because of the last spurious, empty line of the split
+    # see if the first line between the marks is the original line
+    if slice.split('\n',1)[0] == oline.raw:
+      current[c].changed = False
+    # forward through all the slice lines
+    c += slice.count('\n')
 
     start = end
-    
-  return current
-  
-  """
-  # assume to start everything was changed, except for empties
-  for line in current:
-    if not line.raw.strip():
-      line.changed = False
-    else:
-      line.changed = True
-  
-  consumed_=0
-  for oline in original:
-    if not oline.raw.strip():
-      continue # skip empties, they are too confusing
-    for c in range(consumed_,len(current)):
-      if oline.raw == current[c].raw: # Found it!
-        current[c].changed = False
-        consumed_ = c + 1   # only search through current line from this point forward
-        break
-  """
 
   return current
       
