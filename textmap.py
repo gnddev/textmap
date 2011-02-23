@@ -331,7 +331,7 @@ def scrollbar(lines,topI,botI,w,h,bg,cr,scrollbarW=10):
       #cr.rectangle(w-scrollbarW,topY,scrollbarW,botY-topY)
       cr.rectangle(0,topY,w,botY-topY)
       cr.fill()
-      
+
   if 0: # scheme 2
     cr.set_line_width(3)
     cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.)
@@ -492,8 +492,46 @@ def str2rgb(s):
   b = int(s[5:7],16)/256.
   return r,g,b
   
-def mark_changed_lines(original,current):
+def init_original_lines_info(doc,lines):
+  rn = []
+  # now we insert marks at the end of every line
+  iter = doc.get_start_iter()
+  n = 0
+  while 1:
+    more_left = iter.forward_line()
+    rec = struct()
+    lines[n].mark = doc.create_mark(None,iter,False) 
+    n+=1
+    if not more_left:
+      break
+  assert n==len(lines),(n,len(lines),'something off with our iterator logic')
+  return lines
   
+def mark_changed_lines(doc,original,current):
+  'unfortunate choice of name, has nothing to do with GtkTextBuffer marks'
+
+  # presume all current lines are changed
+  for line in current:
+    line.changed = True
+  
+  # mark any original lines we find as unchanged
+  start = doc.get_start_iter()
+  i=0
+  for oline in original:
+    end = doc.get_iter_at_mark(oline.mark)
+    slice = doc.get_slice(start,end)
+    slice_lines_raw = slice.split('\n')
+    # see if the first one is the original line
+    if slice_lines_raw[0] == oline.raw:
+      current[i].changed = False
+    # forward through any new lines
+    i += len(slice_lines_raw) - 1 # because of the last spurious, empty line of the split
+
+    start = end
+    
+  return current
+  
+  """
   # assume to start everything was changed, except for empties
   for line in current:
     if not line.raw.strip():
@@ -510,6 +548,7 @@ def mark_changed_lines(original,current):
         current[c].changed = False
         consumed_ = c + 1   # only search through current line from this point forward
         break
+  """
 
   return current
       
@@ -718,15 +757,15 @@ class TextmapView(gtk.VBox):
       if id(doc) not in me.doc_attached_data:
         docrec = struct()
         me.doc_attached_data[id(doc)] = docrec
-        docrec.original_lines = None # we skip the first one, its empty
+        docrec.original_lines_info = None # we skip the first one, its empty
         docrec.search_text = None
         for l in lines:
           l.changed = False
       else:
         docrec = me.doc_attached_data[id(doc)]
-        if docrec.original_lines == None:
-          docrec.original_lines = lines #copy.deepcopy(lines)
-        lines = mark_changed_lines(docrec.original_lines, lines)
+        if docrec.original_lines_info == None:
+          docrec.original_lines_info = init_original_lines_info(doc,lines)
+        lines = mark_changed_lines(doc, docrec.original_lines_info, lines)
         
       if not doc_get_search_text_bug():
         docrec.search_text = doc.get_search_text()[0]
