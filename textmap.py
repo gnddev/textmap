@@ -268,6 +268,13 @@ def darken(fraction,r,g,b):
 def lighten(fraction,r,g,b):
   return r+(1-r)*fraction,g+(1-g)*fraction,b+(1-b)*fraction
   
+def doc_get_search_text_bug():
+  major,minor,patch = gedit.version
+  if major==2 and minor<28:
+    # there was a missing INCREF then
+    return True
+  return False
+  
 def scrollbar(lines,topI,botI,w,h,bg,cr,scrollbarW=10):
   "top and bot a passed as line indices"
   # figure out location
@@ -543,9 +550,55 @@ class TextmapView(gtk.VBox):
     
     me.show_all()
     
+  '''
+     gtk.gdk.SCROLL_UP, 
+    gtk.gdk.SCROLL_DOWN, 
+    gtk.gdk.SCROLL_LEFT, 
+    gtk.gdk.SCROLL_RIGHT
+
+  Example:
+
+    def on_button_scroll_event(button, event):
+      if event.direction == gtk.gdk.SCROLL_UP:
+         print "You scrolled up"
+         
+  event = gtk.gdk.Event(gtk.gdk.EXPOSE)
+  
+        def motion_notify(ruler, event):
+            return ruler.emit("motion_notify_event", event)
+        self.area.connect_object("motion_notify_event", motion_notify,
+                                 self.hruler)
+        self.area.connect_object("motion_notify_event", motion_notify,
+                                 self.vruler)
+  '''
   def on_darea_scroll_event(me, widget, event):
     #print 'XXX on_darea_scroll_event'
+    
+    # this scheme does not work
     # somehow pass this on, scroll the document/view
+    #print type(widget),widget,type(event),event
+    #probj(event)
+    #view = me.geditwin.get_active_view()
+    #if not view:
+    #  return
+    #return view.emit('scroll-event',event)
+
+    # the following crashes
+    #pagesize = 12
+    #topI,botI = visible_lines_top_bottom(me.geditwin)
+    #if event.direction == gtk.gdk.SCROLL_UP:
+    #  newI = topI - pagesize
+    #elif event.direction == gtk.gdk.SCROLL_DOWN:
+    #  newI = botI + pagesize
+    #else:
+    #  return
+    #  
+    #view = me.geditwin.get_active_view()
+    #doc  = me.geditwin.get_active_tab().get_document()
+    #view.scroll_to_iter(doc.get_iter_at_line_index(newI,0),0,False,0,0)
+    #
+    #queue_refresh(me)
+    
     pass
     
   def on_doc_cursor_moved(me, doc):
@@ -570,10 +623,12 @@ class TextmapView(gtk.VBox):
     #print line.i, repr(line.raw)
     view = me.geditwin.get_active_view()
     doc = me.geditwin.get_active_tab().get_document()
-    doc.place_cursor(doc.get_iter_at_line_index(line.i,0))
     
-    view.scroll_to_cursor()
+    #doc.place_cursor(doc.get_iter_at_line_index(line.i,0))
+    #view.scroll_to_cursor()
     #print view
+    
+    view.scroll_to_iter(doc.get_iter_at_line_index(line.i,0),0,True,0,.5)
     
     queue_refresh(me)
     
@@ -590,6 +645,9 @@ class TextmapView(gtk.VBox):
       docrec.search_text = s
       queue_refresh(me)    
     
+  def test_event(me, ob, event):
+    print 'here',ob
+    
   def expose(me, widget, event):
     doc = me.geditwin.get_active_tab().get_document()
     if not doc:   # nothing open yet
@@ -599,7 +657,7 @@ class TextmapView(gtk.VBox):
       me.connected[id(doc)] = True
       doc.connect("cursor-moved", me.on_doc_cursor_moved)
       doc.connect("insert-text", me.on_insert_text)
-      doc.connect("search-highlight-updated", me.on_search_highlight_updated)
+      #doc.connect("search-highlight-updated", me.on_search_highlight_updated)
       
     view = me.geditwin.get_active_view()
     if not view:
@@ -608,21 +666,38 @@ class TextmapView(gtk.VBox):
     if id(view) not in me.connected:
       me.connected[id(view)] = True
       view.connect("scroll-event", me.on_scroll_event)
+      #view.connect("start-interactive-goto-line", me.test_event)
+      #view.connect("start-interactive-search", me.test_event)
+      #view.connect("reset-searched-text", me.test_event)
       
-    style = None
+    bg = (0,0,0)
+    fg = (1,1,1)
     try:
       style = doc.get_style_scheme().get_style('text')
-    except:
-      pass  # probably an older version of gedit, not style schemes yet
+      if style is None: # there is a style scheme, but it does not specify default
+        bg = (1,1,1)
+        fg = (0,0,0)
+      else:
+        fg,bg = map(str2rgb, style.get_properties('foreground','background'))  
+    except Exception,e:
+      pass  # probably an older version of gedit, no style schemes yet
     
-    if style is None:
-      bg = (0,0,0)
-      fg = (1,1,1)
-    else:
-      fg,bg = map(str2rgb, style.get_properties('foreground','background'))
     changeCLR = (1,0,1)
-    searchCLR = (0,1,0)
+    
+    #search_match_style = None
+    #try:
+    #  search_match_style = doc.get_style_scheme().get_style('search-match')
+    #except:
+    #  pass
+    #if search_match_style is None:
+    #  searchFG = fg
+    #  searchBG = (0,1,0)
+    #else:
+    #  searchFG,searchBG = map(str2rgb, style.get_properties('foreground','background'))
+    searchFG = fg
+    searchBG = (0,1,0)
       
+    
     #print doc
        
     try:
@@ -653,7 +728,9 @@ class TextmapView(gtk.VBox):
           docrec.original_lines = lines #copy.deepcopy(lines)
         lines = mark_changed_lines(docrec.original_lines, lines)
         
-      lines = lines_mark_search_matches(lines,docrec)
+      if not doc_get_search_text_bug():
+        docrec.search_text = doc.get_search_text()[0]
+        lines = lines_mark_search_matches(lines,docrec)
      
       cr.push_group()
       
@@ -697,31 +774,30 @@ class TextmapView(gtk.VBox):
       for i, line in enumerate(lines):
       
         line.y = sofarH
-        # text
-        if 1:
-          lastH = sofarH
-          cr.set_font_size(scale)
-          if line.raw.strip():
-            tw,th = text_extents(line.raw,cr)
-          
-            if line.search_match:
-              cr.set_source_rgb(*searchCLR)
-            elif line.changed:
-              cr.set_source_rgb(*changeCLR)
-            else:
-              cr.set_source_rgb(*fg)
-            
-            cr.show_text(line.raw)
-            
-            if stretch:
-              sofarH += lineH
-            else:
-              sofarH += th
+        lastH = sofarH
+        cr.set_font_size(scale)
+        
+        if line.raw.strip(): # there is some text here
+          tw,th = text_extents(line.raw,cr)
+        
+          if line.search_match:
+            cr.set_source_rgb(*searchBG)
+          elif line.changed:
+            cr.set_source_rgb(*changeCLR)
           else:
-            if stretch:
-              sofarH += lineH
-            else:
-              sofarH += scale-1
+            cr.set_source_rgb(*fg)
+          
+          cr.show_text(line.raw)
+          
+          if stretch:
+            sofarH += lineH
+          else:
+            sofarH += th
+        else:
+          if stretch:
+            sofarH += lineH
+          else:
+            sofarH += scale-1
           
         if line.section:
           sections.append((line, lastH))
@@ -741,20 +817,21 @@ class TextmapView(gtk.VBox):
           if 0:
             cr.move_to(subsmargin,line.y)
             cr.line_to(subsmargin+subsW,line.y)
-          if line.subsectionchanged:
-            cr.set_source_rgb(*changeCLR)
-          else:
-            cr.set_source_rgb(*fg)
+          #if line.subsectionchanged:
+          #  cr.set_source_rgb(*changeCLR)
+          #else:
+          #  cr.set_source_rgb(*fg)
+          cr.set_source_rgb(*fg)
           cr.arc(subsmargin,line.y+3,2,0,6.28)
           cr.stroke()
           
       # Sections
+      
       for line, lastH in sections:
       
         if 0: # section lines
           cr.move_to(0, lastH)
           cr.set_line_width(1)
-          #cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.)
           cr.set_source_rgb(*fg)
           cr.line_to(w,lastH)
           cr.stroke()
@@ -762,13 +839,12 @@ class TextmapView(gtk.VBox):
         if 1: # section heading
           cr.move_to(0,lastH)
           cr.set_font_size(12)
-          #cr.set_source_rgb(0xd3/256.,0xd7/256.,0xcf/256.)
           #if line.sectionchanged:
           #  cr.set_source_rgb(*changeCLR)
           #else:
           #  cr.set_source_rgb(*fg)
-          secfgCLR = changeCLR if line.sectionchanged else fg
-          dispnfo = fit_text(line.section,4*w/5,line.section_len*rectH,secfgCLR,bg,cr)
+          cr.set_source_rgb(*fg)         
+          dispnfo = fit_text(line.section,4*w/5,line.section_len*rectH,fg,bg,cr)
           
         if 0 and dispnfo: # section hatches
           cr.set_line_width(1)
@@ -787,7 +863,7 @@ class TextmapView(gtk.VBox):
 
       for line in lines:
         if line.search_match:
-          clr = searchCLR
+          clr = searchBG
         elif line.changed:
           clr = changeCLR
         else:
