@@ -448,7 +448,7 @@ def scrollbar(lines,topI,botI,w,h,bg,cr,scrollbarW=10):
   else:
     color = (0,0,0)
     
-  if 1: # triangle left
+  if 0: # triangle left
     # triangle
     size=12
     midY = topY+(botY-topY)/2
@@ -462,9 +462,9 @@ def scrollbar(lines,topI,botI,w,h,bg,cr,scrollbarW=10):
     cr.line_to(size+1,midY)
     cr.fill()
     # line
-    cr.move_to(2,topY+2)
-    cr.line_to(2,botY-2)
-    cr.stroke()
+    #cr.move_to(2,topY+2)
+    #cr.line_to(2,botY-2)
+    #cr.stroke()
     
   if 1: # dashed lines
     cr.set_line_width(2)
@@ -498,13 +498,17 @@ def init_original_lines_info(doc,lines):
   iter = doc.get_start_iter()
   n = 0
   while 1:
+    if n>=len(lines):
+      break
     more_left = iter.forward_line()
     rec = struct()
     lines[n].mark = doc.create_mark(None,iter,False) 
     n+=1
     if not more_left:
       break
-  assert n==len(lines),(n,len(lines),'something off with our iterator logic')
+  assert n>=len(lines)-1,(n,len(lines),'something off with our iterator logic')
+  if n==len(lines)-1:
+    lines[-1].mark=doc.create_mark(None,doc.get_end_iter(),False)
   return lines
   
 def mark_changed_lines(doc,original,current):
@@ -550,6 +554,11 @@ class TextmapView(gtk.VBox):
     darea.add_events(gtk.gdk.BUTTON_PRESS_MASK)
     darea.connect("button-press-event", me.button_press)
     darea.connect("scroll-event", me.on_darea_scroll_event)
+    darea.add_events(gtk.gdk.ENTER_NOTIFY_MASK)
+    darea.connect("enter-notify-event", me.on_darea_enter_notify_event)
+    darea.add_events(gtk.gdk.LEAVE_NOTIFY_MASK)
+    darea.connect("leave-notify-event", me.on_darea_leave_notify_event)
+    
     
     me.pack_start(darea, True, True)
     
@@ -558,6 +567,7 @@ class TextmapView(gtk.VBox):
 
     me.connected = {}
     me.draw_scrollbar_only = False
+    me.draw_sections = False
     me.topL = None
     me.surface_textmap = None
     
@@ -588,7 +598,21 @@ class TextmapView(gtk.VBox):
         self.area.connect_object("motion_notify_event", motion_notify,
                                  self.vruler)
   '''
+  
+  def on_darea_enter_notify_event(me, widget, event):
+    if event.mode.value_name == 'GDK_CROSSING_GTK_UNGRAB':
+      return
+    #print 'in here enter'
+    me.draw_sections = True
+    queue_refresh(me)
+    
+  def on_darea_leave_notify_event(me, widget, event):
+    #print 'in here leaving'
+    me.draw_sections = False
+    queue_refresh(me)
+    
   def on_darea_scroll_event(me, widget, event):
+    pass
     #print 'XXX on_darea_scroll_event'
     
     # this scheme does not work
@@ -615,8 +639,6 @@ class TextmapView(gtk.VBox):
     #view.scroll_to_iter(doc.get_iter_at_line_index(newI,0),0,False,0,0)
     #
     #queue_refresh(me)
-    
-    pass
     
   def on_doc_cursor_moved(me, doc):
     #new_line_count = doc.get_line_count()
@@ -823,52 +845,53 @@ class TextmapView(gtk.VBox):
           
       # ------------------- display sections and subsections  ------------------
 
-      # Subsections
-      
-      cr.new_path()
-      cr.set_line_width(1.5)
-      subsW = 10
-      subsmargin = 10
-      for line in lines:
-        if line.subsection:
-          if 0:
-            cr.move_to(subsmargin,line.y)
-            cr.line_to(subsmargin+subsW,line.y)
-          #if line.subsectionchanged:
-          #  cr.set_source_rgb(*changeCLR)
-          #else:
-          #  cr.set_source_rgb(*fg)
-          cr.set_source_rgb(*fg)
-          cr.arc(subsmargin,line.y+3,2,0,6.28)
-          cr.stroke()
-          
-      # Sections
-      
-      for line, lastH in sections:
-      
-        if 0: # section lines
-          cr.move_to(0, lastH)
-          cr.set_line_width(1)
-          cr.set_source_rgb(*fg)
-          cr.line_to(w,lastH)
-          cr.stroke()
+      if me.draw_sections:
+        # Subsections
         
-        if 1: # section heading
-          cr.move_to(0,lastH)
-          cr.set_font_size(12)
-          #if line.sectionchanged:
-          #  cr.set_source_rgb(*changeCLR)
-          #else:
-          #  cr.set_source_rgb(*fg)
-          cr.set_source_rgb(*fg)         
-          dispnfo = fit_text(line.section,4*w/5,line.section_len*rectH,fg,bg,cr)
+        cr.new_path()
+        cr.set_line_width(1.5)
+        subsW = 10
+        subsmargin = 10
+        for line in lines:
+          if line.subsection:
+            if 0:
+              cr.move_to(subsmargin,line.y)
+              cr.line_to(subsmargin+subsW,line.y)
+            #if line.subsectionchanged:
+            #  cr.set_source_rgb(*changeCLR)
+            #else:
+            #  cr.set_source_rgb(*fg)
+            cr.set_source_rgb(*fg)
+            cr.arc(subsmargin,line.y+3,2,0,6.28)
+            cr.stroke()
+            
+        # Sections
+        
+        for line, lastH in sections:
+        
+          if 0: # section lines
+            cr.move_to(0, lastH)
+            cr.set_line_width(1)
+            cr.set_source_rgb(*fg)
+            cr.line_to(w,lastH)
+            cr.stroke()
           
-        if 0 and dispnfo: # section hatches
-          cr.set_line_width(1)
-          r=dispnfo[0] # first line
-          cr.move_to(r.x+r.tw+2,r.y-r.th/2+2)
-          cr.line_to(w,r.y-r.th/2+2)
-          cr.stroke()
+          if 1: # section heading
+            cr.move_to(0,lastH)
+            cr.set_font_size(12)
+            #if line.sectionchanged:
+            #  cr.set_source_rgb(*changeCLR)
+            #else:
+            #  cr.set_source_rgb(*fg)
+            cr.set_source_rgb(*fg)         
+            dispnfo = fit_text(line.section,4*w/5,line.section_len*rectH,fg,bg,cr)
+            
+          if 0 and dispnfo: # section hatches
+            cr.set_line_width(1)
+            r=dispnfo[0] # first line
+            cr.move_to(r.x+r.tw+2,r.y-r.th/2+2)
+            cr.line_to(w,r.y-r.th/2+2)
+            cr.stroke()
           
       # ------------------ translate back for the scroll bar -------------------
       
