@@ -696,7 +696,7 @@ class TextmapView(gtk.VBox):
       me.connected[id(doc)] = True
       doc.connect("cursor-moved", me.on_doc_cursor_moved)
       doc.connect("insert-text", me.on_insert_text)
-      #doc.connect("search-highlight-updated", me.on_search_highlight_updated)
+      doc.connect("search-highlight-updated", me.on_search_highlight_updated)
       
     view = me.geditwin.get_active_view()
     if not view:
@@ -749,6 +749,7 @@ class TextmapView(gtk.VBox):
     #probj(cr,'rgb')
     
     # Are we drawing everything, or just the scrollbar?
+    fontfamily = 'sans-serif'
             
     if me.surface_textmap is None or not me.draw_scrollbar_only:
     
@@ -793,9 +794,9 @@ class TextmapView(gtk.VBox):
       max_scale = 3
       lines, scale, downsampled = downsample_lines(lines, h, max_scale=max_scale)
       
-      stretch = False
+      smooshed = False
       if downsampled or scale < max_scale:
-        stretch = True
+        smooshed = True
       
       lines = lines_add_section_len(lines)
       lines = lines_mark_changed_sections(lines)
@@ -825,15 +826,22 @@ class TextmapView(gtk.VBox):
             cr.set_source_rgb(*changeCLR)
           else:
             cr.set_source_rgb(*fg)
+            
+          if line.section or line.subsection:
+            #cr.select_font_face(fontfamily, cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
+            cr.set_font_size(scale+3)
+          else:
+            #cr.select_font_face(fontfamily, cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+            cr.set_font_size(scale)
           
           cr.show_text(line.raw)
           
-          if stretch:
+          if smooshed:
             sofarH += lineH
           else:
             sofarH += th
         else:
-          if stretch:
+          if smooshed:
             sofarH += lineH
           else:
             sofarH += scale-1
@@ -861,10 +869,18 @@ class TextmapView(gtk.VBox):
             #  cr.set_source_rgb(*changeCLR)
             #else:
             #  cr.set_source_rgb(*fg)
-            cr.set_source_rgb(*fg)
-            cr.arc(subsmargin,line.y+3,2,0,6.28)
-            cr.stroke()
-            
+            if 0:
+              cr.set_source_rgb(*fg)
+              cr.arc(subsmargin,line.y+3,2,0,6.28)
+              cr.stroke()
+            if 1:
+              #cr.move_to(20,line.y)
+              cr.set_font_size(10)
+              cr.set_source_rgb(*fg)
+              #cr.show_text(line.subsection)
+              cr.move_to(10,line.y)
+              fit_text(line.subsection, 10000, 10000, fg, bg, cr)
+              
         # Sections
         
         for line, lastH in sections:
