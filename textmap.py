@@ -15,6 +15,8 @@
 # Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
 import gtk
+import time
+import gobject
 import gedit
 import sys
 import math
@@ -671,9 +673,22 @@ class TextmapView(gtk.VBox):
     
     queue_refresh(me)
     
+  def on_scroll_finished(me):
+    #print 'in here',me.last_scroll_time,time.time()-me.last_scroll_time
+    if time.time()-me.last_scroll_time > .5:
+      me.draw_sections = False
+      me.draw_scrollbar_only = False
+      queue_refresh(me)
+    return False
+    
   def on_scroll_event(me,view,event):
     #print 'on_scroll_event...'
-    me.draw_scrollbar_only = True
+    me.last_scroll_time = time.time()
+    if me.draw_sections: # we are in the middle of scrolling
+      me.draw_scrollbar_only = True
+    else:
+      me.draw_sections = True # for the first scroll, turn on section names
+    gobject.timeout_add(500,me.on_scroll_finished) # this will fade out sections
     queue_refresh(me)
     
   def on_search_highlight_updated(me,doc,t,u):
@@ -818,6 +833,7 @@ class TextmapView(gtk.VBox):
         cr.set_font_size(scale)
         
         if line.raw.strip(): # there is some text here
+            
           tw,th = text_extents(line.raw,cr)
         
           if line.search_match:
@@ -840,7 +856,7 @@ class TextmapView(gtk.VBox):
             sofarH += lineH
           else:
             sofarH += th
-        else:
+        else: # empty line
           if smooshed:
             sofarH += lineH
           else:
@@ -940,7 +956,11 @@ class TextmapView(gtk.VBox):
 
     topL,botL = visible_lines_top_bottom(me.geditwin)
     
-    scrollbar(me.lines,topL,botL,w,h,bg,cr)
+    if topL==0 and botL==doc.get_end_iter().get_line():
+      pass # everything is visible, don't draw scrollbar
+    else:
+      scrollbar(me.lines,topL,botL,w,h,bg,cr)
+    
     
     me.topL = topL
     me.draw_scrollbar_only = False
