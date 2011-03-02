@@ -152,6 +152,20 @@ def text_extents(str,cr):
   
   return nx, height
   
+def show_section_label(str, fg, bg, cr):
+  if dark(*bg):
+    bg_rect_C = lighten(.1,*bg)
+  else:
+    bg_rect_C = darken(.1,*bg)
+  tw,th = text_extents(str,cr)
+  x,y = cr.get_current_point()
+  cr.set_source_rgba(bg_rect_C[0],bg_rect_C[1],bg_rect_C[2],.75)
+  cr.rectangle(x,y-th+2,tw,th)
+  cr.fill()
+  cr.move_to(x,y)
+  cr.set_source_rgb(*fg)
+  cr.show_text(str)
+    
 def fit_text(str, w, h, fg, bg, cr):
   moved_down = False
   originalx,_ = cr.get_current_point()
@@ -765,6 +779,7 @@ class TextmapView(gtk.VBox):
     
     # Are we drawing everything, or just the scrollbar?
     fontfamily = 'sans-serif'
+    cr.select_font_face('monospace', cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
             
     if me.surface_textmap is None or not me.draw_scrollbar_only:
     
@@ -895,7 +910,8 @@ class TextmapView(gtk.VBox):
               cr.set_source_rgb(*fg)
               #cr.show_text(line.subsection)
               cr.move_to(10,line.y)
-              fit_text(line.subsection, 10000, 10000, fg, bg, cr)
+              #fit_text(line.subsection, 10000, 10000, fg, bg, cr)
+              show_section_label(line.subsection, fg, bg, cr)
               
         # Sections
         
@@ -916,7 +932,8 @@ class TextmapView(gtk.VBox):
             #else:
             #  cr.set_source_rgb(*fg)
             cr.set_source_rgb(*fg)         
-            dispnfo = fit_text(line.section,4*w/5,line.section_len*rectH,fg,bg,cr)
+            #dispnfo = fit_text(line.section,4*w/5,line.section_len*rectH,fg,bg,cr)
+            show_section_label(line.section, fg, bg, cr)
             
           if 0 and dispnfo: # section hatches
             cr.set_line_width(1)
