@@ -92,6 +92,7 @@ def document_lines(document):
     x.raw = each
     x.section = match_RE_list(x.raw,SectionREs)
     x.subsection = None
+    x.search_match = False
     if not x.section:
       x.subsection = match_RE_list(x.raw,SubsectionREs)
     ans.append(x)
@@ -129,29 +130,37 @@ def lines_mark_changed_sections(lines):
         subsec.subsectionchanged = True
   return lines
         
-      
+def BUG_cairo_text_extents():
+  major,minor,patch = gedit.version
+  if major==2 and minor<28:
+    # there was a missing INCREF then
+    return True
+  return False
+  
 def text_extents(str,cr):
   "code around bug in older cairo"
-  #try:
-  #  return cr.text_extents(str)
-  #except MemoryError:
-  #  pass
-    
-  if str:
-    x, y = cr.get_current_point()
-    cr.move_to(0,-5)
-    cr.show_text(str)
-    nx,ny = cr.get_current_point()
-    cr.move_to(x,y)
-  else:
-    nx = 0
-    ny = 0
+  
+  if BUG_cairo_text_extents():  
+    if str:
+      x, y = cr.get_current_point()
+      cr.move_to(0,-5)
+      cr.show_text(str)
+      nx,ny = cr.get_current_point()
+      cr.move_to(x,y)
+    else:
+      nx = 0
+      ny = 0
 
-  #print repr(str),x,nx,y,ny
-  ascent, descent, height, max_x_advance, max_y_advance = cr.font_extents()
+    #print repr(str),x,nx,y,ny
+    ascent, descent, height, max_x_advance, max_y_advance = cr.font_extents()
+    
+    return nx, height
   
-  return nx, height
+  else:
   
+    x_bearing, y_bearing, width, height, x_advance, y_advance = cr.text_extents(str)
+    return width, height
+    
 def show_section_label(str, fg, bg, cr):
   if dark(*bg):
     bg_rect_C = lighten(.1,*bg)
@@ -160,7 +169,7 @@ def show_section_label(str, fg, bg, cr):
   tw,th = text_extents(str,cr)
   x,y = cr.get_current_point()
   cr.set_source_rgba(bg_rect_C[0],bg_rect_C[1],bg_rect_C[2],.75)
-  cr.rectangle(x,y-th+2,tw,th)
+  cr.rectangle(x,y-th+3,tw,th)
   cr.fill()
   cr.move_to(x,y)
   cr.set_source_rgb(*fg)
@@ -284,7 +293,7 @@ def darken(fraction,r,g,b):
 def lighten(fraction,r,g,b):
   return r+(1-r)*fraction,g+(1-g)*fraction,b+(1-b)*fraction
   
-def doc_get_search_text_bug():
+def BUG_doc_get_search_text():
   major,minor,patch = gedit.version
   if major==2 and minor<28:
     # there was a missing INCREF then
@@ -798,7 +807,9 @@ class TextmapView(gtk.VBox):
           docrec.original_lines_info = init_original_lines_info(doc,lines)
         lines = mark_changed_lines(doc, docrec.original_lines_info, lines)
         
-      if not doc_get_search_text_bug():
+      if BUG_doc_get_search_text():
+        pass
+      else:
         docrec.search_text = doc.get_search_text()[0]
         lines = lines_mark_search_matches(lines,docrec)
      
