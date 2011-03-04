@@ -51,6 +51,8 @@ def indent(s):
   for c in s:
     if c == ' ':
       x += 1
+    elif c == '\t':
+      x += 8
     else:
       break
   return x
@@ -95,6 +97,14 @@ def document_lines(document):
     x.search_match = False
     if not x.section:
       x.subsection = match_RE_list(x.raw,SubsectionREs)
+    if x.section or x.subsection:
+      match = Split_Off_Indent_Pattern.match(x.raw)
+      x.indentSTR = None
+      x.justextSTR = None
+      if match:
+        groups = match.groups()
+        if len(groups) == 2:
+          x.indentSTR, x.justextSTR = groups
     ans.append(x)
   return ans
   
@@ -161,14 +171,14 @@ def text_extents(str,cr):
     x_bearing, y_bearing, width, height, x_advance, y_advance = cr.text_extents(str)
     return width, height
     
+def pr_text_extents(s,cr):
+  x_bearing, y_bearing, width, height, x_advance, y_advance = cr.text_extents(s)
+  print repr(s),':','x_bearing',x_bearing,'y_bearing',y_bearing,'width',width,'height',height,'x_advance',x_advance,'y_advance',y_advance
+  
 def show_section_label(str, fg, bg, cr):
-  if dark(*bg):
-    bg_rect_C = lighten(.1,*bg)
-  else:
-    bg_rect_C = darken(.1,*bg)
   tw,th = text_extents(str,cr)
   x,y = cr.get_current_point()
-  cr.set_source_rgba(bg_rect_C[0],bg_rect_C[1],bg_rect_C[2],.75)
+  cr.set_source_rgba(bg[0],bg[1],bg[2],.75)
   cr.rectangle(x,y-th+3,tw,th)
   cr.fill()
   cr.move_to(x,y)
@@ -566,6 +576,8 @@ def lines_mark_search_matches(lines,docrec):
     else:
       line.search_match = False
   return lines
+  
+Split_Off_Indent_Pattern = re.compile('(\s*)(.*)$')
       
 class TextmapView(gtk.VBox):
   def __init__(me, geditwin):
@@ -847,8 +859,17 @@ class TextmapView(gtk.VBox):
       
       #print 'doc',doc.get_uri(), lines[0].raw
       
-      # ------------------------ display text silhouette -----------------------
+      whitespaceW = text_extents('.',cr)[0]-1
+      #print pr_text_extents(' ',cr)
+      #print pr_text_extents('.',cr)
+      #print pr_text_extents(' .',cr)
       
+      # ------------------------ display text silhouette -----------------------
+      if dark(*fg):
+        faded_fg = lighten(.5,*fg)
+      else:
+        faded_fg = darken(.5,*fg)
+          
       rectH = h/float(len(lines))
       sofarH= 0
       sections = []
@@ -866,17 +887,24 @@ class TextmapView(gtk.VBox):
             cr.set_source_rgb(*searchBG)
           elif line.changed:
             cr.set_source_rgb(*changeCLR)
+          elif me.draw_sections:
+            cr.set_source_rgb(*faded_fg)
           else:
             cr.set_source_rgb(*fg)
             
           if line.section or line.subsection:
             #cr.select_font_face(fontfamily, cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
             cr.set_font_size(scale+3)
+            if line.justextSTR:
+              x,y = cr.get_current_point()
+              cr.move_to(whitespaceW*line.indent,y)
+              cr.show_text(line.justextSTR)
+            else:
+              cr.show_text(line.raw)
           else:
             #cr.select_font_face(fontfamily, cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
             cr.set_font_size(scale)
-          
-          cr.show_text(line.raw)
+            cr.show_text(line.raw)
           
           if smooshed:
             sofarH += lineH
@@ -893,10 +921,20 @@ class TextmapView(gtk.VBox):
           
         cr.move_to(0, sofarH)
           
-      # ------------------- display sections and subsections  ------------------
+      # ------------------- display sections and subsections labels  ------------------
 
       if me.draw_sections:
         # Subsections
+        
+        if dark(*bg):
+          bg_rect_C = lighten(.1,*bg)
+        else:
+          bg_rect_C = darken(.1,*bg)
+          
+        if 0: # - blot out the background -
+          cr.set_source_rgba(bg_rect_C[0],bg_rect_C[1],bg_rect_C[2],.5)
+          cr.rectangle(0,0,w,h)
+          cr.fill()
         
         cr.new_path()
         cr.set_line_width(1.5)
@@ -920,9 +958,10 @@ class TextmapView(gtk.VBox):
               cr.set_font_size(10)
               cr.set_source_rgb(*fg)
               #cr.show_text(line.subsection)
-              cr.move_to(10,line.y)
+              cr.move_to(whitespaceW*line.indent,line.y)
+              #cr.move_to(10,line.y)
               #fit_text(line.subsection, 10000, 10000, fg, bg, cr)
-              show_section_label(line.subsection, fg, bg, cr)
+              show_section_label(line.subsection, fg, bg_rect_C, cr)
               
         # Sections
         
@@ -944,7 +983,7 @@ class TextmapView(gtk.VBox):
             #  cr.set_source_rgb(*fg)
             cr.set_source_rgb(*fg)         
             #dispnfo = fit_text(line.section,4*w/5,line.section_len*rectH,fg,bg,cr)
-            show_section_label(line.section, fg, bg, cr)
+            show_section_label(line.section, fg, bg_rect_C, cr)
             
           if 0 and dispnfo: # section hatches
             cr.set_line_width(1)
