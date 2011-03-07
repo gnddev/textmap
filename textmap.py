@@ -710,10 +710,11 @@ class TextmapView(gtk.VBox):
     
   def on_scroll_finished(me):
     #print 'in here',me.last_scroll_time,time.time()-me.last_scroll_time
-    if time.time()-me.last_scroll_time > .5:
-      me.draw_sections = False
-      me.draw_scrollbar_only = False
-      queue_refresh(me)
+    if time.time()-me.last_scroll_time > .47:
+      if me.draw_sections:
+        me.draw_sections = False
+        me.draw_scrollbar_only = False
+        queue_refresh(me)
     return False
     
   def on_scroll_event(me,view,event):
