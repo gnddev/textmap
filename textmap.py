@@ -243,11 +243,11 @@ def fit_text(str, w, h, fg, bg, cr):
       break
   return rn
       
-def downsample_lines(lines, h, max_scale=3):
+def downsample_lines(lines, h, min_scale, max_scale):
   n = len(lines)
   
   # pick scale
-  for scale in range(max_scale,0,-1): 
+  for scale in range(max_scale,min_scale-1,-1): 
     maxlines_ = h/(.85*scale)
     if n < 2*maxlines_:
       break
@@ -846,7 +846,7 @@ class TextmapView(gtk.VBox):
       w -= margin # an d here
             
       max_scale = 3
-      lines, scale, downsampled = downsample_lines(lines, h, max_scale=max_scale)
+      lines, scale, downsampled = downsample_lines(lines, h, 2, max_scale)
       
       smooshed = False
       if downsampled or scale < max_scale:
@@ -941,6 +941,7 @@ class TextmapView(gtk.VBox):
         cr.set_line_width(1.5)
         subsW = 10
         subsmargin = 10
+        cr.set_font_size(10)
         for line in lines:
           if line.subsection:
             if 0:
@@ -956,7 +957,6 @@ class TextmapView(gtk.VBox):
               cr.stroke()
             if 1:
               #cr.move_to(20,line.y)
-              cr.set_font_size(10)
               cr.set_source_rgb(*fg)
               #cr.show_text(line.subsection)
               cr.move_to(whitespaceW*line.indent,line.y)
@@ -966,6 +966,7 @@ class TextmapView(gtk.VBox):
               
         # Sections
         
+        cr.set_font_size(12)
         for line, lastH in sections:
         
           if 0: # section lines
@@ -977,7 +978,6 @@ class TextmapView(gtk.VBox):
           
           if 1: # section heading
             cr.move_to(0,lastH)
-            cr.set_font_size(12)
             #if line.sectionchanged:
             #  cr.set_source_rgb(*changeCLR)
             #else:
