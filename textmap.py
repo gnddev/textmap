@@ -23,6 +23,7 @@ import math
 import cairo
 import re
 import copy
+import platform
 
 version = "0.1 beta"
 
@@ -139,18 +140,25 @@ def lines_mark_changed_sections(lines):
       if subsec is not None:
         subsec.subsectionchanged = True
   return lines
-        
-def BUG_cairo_text_extents():
-  major,minor,patch = gedit.version
-  if major==2 and minor<28:
-    # there was a missing INCREF then
-    return True
-  return False
+  
+BUG_MASK = 0
+
+BUG_CAIRO_MAC_FONT_REF  = 1
+BUG_CAIRO_TEXT_EXTENTS  = 2
+BUG_DOC_GET_SEARCH_TEXT = 4
+
+if platform.system() == 'Darwin':
+  BUG_MASK |= BUG_CAIRO_MAC_FONT_REF  # extra decref causes aborts, use less font ops
+
+major,minor,patch = gedit.version
+if major<=2 and minor<28:
+  BUG_MASK |= BUG_CAIRO_TEXT_EXTENTS  # some reference problem
+  BUG_MASK |= BUG_DOC_GET_SEARCH_TEXT # missing INCREF then
   
 def text_extents(str,cr):
   "code around bug in older cairo"
   
-  if BUG_cairo_text_extents():  
+  if BUG_MASK & BUG_CAIRO_TEXT_EXTENTS:  
     if str:
       x, y = cr.get_current_point()
       cr.move_to(0,-5)
@@ -302,13 +310,6 @@ def darken(fraction,r,g,b):
   
 def lighten(fraction,r,g,b):
   return r+(1-r)*fraction,g+(1-g)*fraction,b+(1-b)*fraction
-  
-def BUG_doc_get_search_text():
-  major,minor,patch = gedit.version
-  if major==2 and minor<28:
-    # there was a missing INCREF then
-    return True
-  return False
   
 def scrollbar(lines,topI,botI,w,h,bg,cr,scrollbarW=10):
   "top and bot a passed as line indices"
@@ -595,6 +596,8 @@ class TextmapView(gtk.VBox):
     darea.connect("enter-notify-event", me.on_darea_enter_notify_event)
     darea.add_events(gtk.gdk.LEAVE_NOTIFY_MASK)
     darea.connect("leave-notify-event", me.on_darea_leave_notify_event)
+    darea.add_events(gtk.gdk.POINTER_MOTION_MASK)
+    darea.connect("motion-notify-event", me.on_darea_motion_notify_event)
     
     
     me.pack_start(darea, True, True)
@@ -614,28 +617,34 @@ class TextmapView(gtk.VBox):
     
     me.show_all()
     
-  '''
-     gtk.gdk.SCROLL_UP, 
-    gtk.gdk.SCROLL_DOWN, 
-    gtk.gdk.SCROLL_LEFT, 
-    gtk.gdk.SCROLL_RIGHT
-
-  Example:
-
-    def on_button_scroll_event(button, event):
-      if event.direction == gtk.gdk.SCROLL_UP:
-         print "You scrolled up"
-         
-  event = gtk.gdk.Event(gtk.gdk.EXPOSE)
+     #'''
+     #   gtk.gdk.SCROLL_UP, 
+     #  gtk.gdk.SCROLL_DOWN, 
+     #  gtk.gdk.SCROLL_LEFT, 
+     #  gtk.gdk.SCROLL_RIGHT
+   #
+     #Example:
+   #
+     #  def on_button_scroll_event(button, event):
+     #    if event.direction == gtk.gdk.SCROLL_UP:
+     #       print "You scrolled up"
+     #       
+     #event = gtk.gdk.Event(gtk.gdk.EXPOSE)
+     #
+     #      def motion_notify(ruler, event):
+     #          return ruler.emit("motion_notify_event", event)
+     #      self.area.connect_object("motion_notify_event", motion_notify,
+     #                               self.hruler)
+     #      self.area.connect_object("motion_notify_event", motion_notify,
+     #                               self.vruler)
+     #'''
   
-        def motion_notify(ruler, event):
-            return ruler.emit("motion_notify_event", event)
-        self.area.connect_object("motion_notify_event", motion_notify,
-                                 self.hruler)
-        self.area.connect_object("motion_notify_event", motion_notify,
-                                 self.vruler)
-  '''
-  
+  def on_darea_motion_notify_event(me, widget, event):
+    #probj(event)
+    #print event.type
+    if event.state & gtk.gdk.BUTTON1_MASK:
+      me.scroll_from_y_mouse_pos(event.y)
+      
   def on_darea_enter_notify_event(me, widget, event):
     if event.mode.value_name == 'GDK_CROSSING_GTK_UNGRAB':
       return
@@ -690,11 +699,9 @@ class TextmapView(gtk.VBox):
     #if len < 20 and '\n' in text:
     #  print 'piter',piter,'text',repr(text),'len',len
     
-  def button_press(me, widget, event):
-    #print 'on_button_press...'
-    #print 'button_press',event.x, event.y
+  def scroll_from_y_mouse_pos(me,y):
     for line in me.lines:
-      if line.y > event.y:
+      if line.y > y:
         break
     #print line.i, repr(line.raw)
     view = me.geditwin.get_active_view()
@@ -707,6 +714,9 @@ class TextmapView(gtk.VBox):
     view.scroll_to_iter(doc.get_iter_at_line_index(line.i,0),0,True,0,.5)
     
     queue_refresh(me)
+        
+  def button_press(me, widget, event):
+    me.scroll_from_y_mouse_pos(event.y)
     
   def on_scroll_finished(me):
     #print 'in here',me.last_scroll_time,time.time()-me.last_scroll_time
@@ -719,6 +729,10 @@ class TextmapView(gtk.VBox):
     
   def on_scroll_event(me,view,event):
     #print 'on_scroll_event...'
+    if BUG_MASK & BUG_CAIRO_MAC_FONT_REF: # turning on section labelling here stresses cairo, frequent abort()s
+      me.draw_scrollbar_only = True
+      queue_refresh(me)
+      return
     me.last_scroll_time = time.time()
     if me.draw_sections: # we are in the middle of scrolling
       me.draw_scrollbar_only = True
@@ -820,7 +834,7 @@ class TextmapView(gtk.VBox):
           docrec.original_lines_info = init_original_lines_info(doc,lines)
         lines = mark_changed_lines(doc, docrec.original_lines_info, lines)
         
-      if BUG_doc_get_search_text():
+      if BUG_MASK & BUG_DOC_GET_SEARCH_TEXT:
         pass
       else:
         docrec.search_text = doc.get_search_text()[0]
