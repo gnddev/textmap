@@ -51,7 +51,7 @@ SubsectionREs = (
   
   re.compile('\s+cdef\s*(?:[\w\.]*?\**\s*)?(\w+)\s*\('),   # cython class method
   
-  re.compile('\s+p[ub]\w+[\w\s]*?(\w+)\s*\('),             # java method
+  re.compile('\s+p[ur]\w+[\w\s]*?(\w+)\s*\('),             # java method
 )
 
 # ------------------------------------------------------------------------------
