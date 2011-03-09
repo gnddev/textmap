@@ -33,14 +33,25 @@ version = "0.1 beta"
 
 SectionREs = (
   re.compile('def\s*(\w+)\s*\('),                          # python method
-  re.compile('class\s*(\w+)\s*[(:]'),                      # python class 
+  re.compile('class\s*(\w+)\s*[(:]'),                      # python class
+  
   re.compile('cdef\s*class\s*(\w+)\s*[(:]'),               # cython class
   re.compile('cdef\s*(?:[\w\.]*?\**\s*)?(\w+)\s*\('),      # cython method
+  
+  re.compile('^(\w*)\s*\('),                               # C method
+  re.compile('^\w+[\w\s\*]*?(\w*)\s*\('),                  # C method
+  
+  re.compile('^function\s*(\w+)\s*\('),                    # javascript method
+  
+  re.compile('\w+[\w\s]*?class (\w*)'),                    # java class
 )
 
 SubsectionREs = (
   re.compile('\s+def\s*(\w+)\s*\('),                       # python class method
+  
   re.compile('\s+cdef\s*(?:[\w\.]*?\**\s*)?(\w+)\s*\('),   # cython class method
+  
+  re.compile('\s+p[ub]\w+[\w\s]*?(\w+)\s*\('),             # java method
 )
 
 # ------------------------------------------------------------------------------
@@ -874,7 +885,8 @@ class TextmapView(gtk.VBox):
       
       #print 'doc',doc.get_uri(), lines[0].raw
       
-      whitespaceW = text_extents('.',cr)[0]-1
+      cr.set_font_size(scale)
+      whitespaceW = text_extents('.',cr)[0]
       #print pr_text_extents(' ',cr)
       #print pr_text_extents('.',cr)
       #print pr_text_extents(' .',cr)
