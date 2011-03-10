@@ -628,6 +628,9 @@ class TextmapView(gtk.VBox):
     
     me.show_all()
     
+    # need this bc of a cairo bug, keep references to all our font faces
+    me.font_face_keepalive = None
+    
      #'''
      #   gtk.gdk.SCROLL_UP, 
      #  gtk.gdk.SCROLL_DOWN, 
@@ -739,11 +742,6 @@ class TextmapView(gtk.VBox):
     return False
     
   def on_scroll_event(me,view,event):
-    #print 'on_scroll_event...'
-    if BUG_MASK & BUG_CAIRO_MAC_FONT_REF: # turning on section labelling here stresses cairo, frequent abort()s
-      me.draw_scrollbar_only = True
-      queue_refresh(me)
-      return
     me.last_scroll_time = time.time()
     if me.draw_sections: # we are in the middle of scrolling
       me.draw_scrollbar_only = True
@@ -762,6 +760,12 @@ class TextmapView(gtk.VBox):
     
   def test_event(me, ob, event):
     print 'here',ob
+    
+  def save_refs_to_all_font_faces(me, cr, *scales):
+    me.font_face_keepalive = []
+    for each in scales:
+      cr.set_font_size(each)
+      me.font_face_keepalive.append(cr.get_font_face())
     
   def expose(me, widget, event):
     doc = me.geditwin.get_active_tab().get_document()
@@ -884,6 +888,9 @@ class TextmapView(gtk.VBox):
       lineH = h/n
       
       #print 'doc',doc.get_uri(), lines[0].raw
+      
+      if BUG_MASK & BUG_CAIRO_MAC_FONT_REF and me.font_face_keepalive is None:
+        me.save_refs_to_all_font_faces(cr,scale,scale+3,10,12)
       
       cr.set_font_size(scale)
       whitespaceW = text_extents('.',cr)[0]
