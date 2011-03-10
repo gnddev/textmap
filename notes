@@ -1,0 +1,11 @@
+MAKING RELEASE
+  
+  ./make_release textmap-0.2beta
+  cp textmap-0.2beta.tgz textmap-0.2beta.zip CHANGELOG.txt ../../webpage/htm/
+  
+  # tag release
+  
+  # then on webpage
+  cd ../../webpage/htm
+  git add textmap-0.2beta.tgz textmap-0.2beta.zip
+  <commit>

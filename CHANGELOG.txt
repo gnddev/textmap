@@ -1,0 +1,15 @@
+v0.2beta, 2011-03-09
+
+ - initial support for sections for other languages (javascript, java, C)
+ - scroll on mouse drag
+ - do not display scrollbar if everything is visible
+ - use monospace font
+ - use slightly larger font for section and subsection lines
+ - large section and subsection labels only displayed on mouse over and while
+   scrolling
+ - mark search matches
+ - mark lines that have changed since the file was opened in different color
+
+v0.1beta, 2011-02-07
+
+ - original version

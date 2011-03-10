@@ -1,0 +1,8 @@
+#!/bin/sh -ex
+
+mkdir $1
+cp CHANGELOG.txt INSTALL.txt textmap.py textmap.gedit-plugin $1
+touch $1/$(git log | head -n1 | cut -f2 -d' ')
+
+tar zcvf $1.tgz $1
+zip -r $1.zip $1
