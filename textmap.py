@@ -25,7 +25,7 @@ import re
 import copy
 import platform
 
-version = "0.1 beta"
+version = "0.2 beta"
 
 # ------------------------------------------------------------------------------
 # These regular expressions are applied in sequence ot each line, to determine
@@ -33,7 +33,7 @@ version = "0.1 beta"
 
 SectionREs = (
   re.compile('def\s*(\w+)\s*\('),                          # python method
-  re.compile('class\s*(\w+)\s*[(:]'),                      # python class
+  re.compile('class\s*(\w+)\s*'),                          # python/java class
   
   re.compile('cdef\s*class\s*(\w+)\s*[(:]'),               # cython class
   re.compile('cdef\s*(?:[\w\.]*?\**\s*)?(\w+)\s*\('),      # cython method
@@ -51,13 +51,52 @@ SubsectionREs = (
   
   re.compile('\s+cdef\s*(?:[\w\.]*?\**\s*)?(\w+)\s*\('),   # cython class method
   
-  re.compile('\s+p[ur]\w+[\w\s]*?(\w+)\s*\('),             # java method
+  re.compile('\s+(?:public|static|private|final)[\w\s]*?(\w+)\s*\('), # java method
 )
 
 # ------------------------------------------------------------------------------
 
 class struct:pass
 
+class TimeRec:
+  def __init__(M):
+    M.tot = M.N = M.childtot = M.heretot = 0
+    M.start_ = None
+    
+class Timer:
+  'L == label'
+  def __init__(M):
+    M.dat = {}
+    M.stack = []
+  def push(M,L):
+    assert L not in M.stack,(L,M.stack)
+    M.stack.append(L)
+    tmrec = M.dat.setdefault(L,TimeRec())
+    tmrec.start_=time.time()
+  def pop(M,L):
+    assert M.stack[-1]==L,(L,M.stack)
+    M.stack.pop()
+    tmrec = M.dat[L]
+    dur = time.time()-tmrec.start_
+    tmrec.start_ = None
+    tmrec.tot += dur
+    tmrec.N += 1
+    #for parent in M.stack:
+    #  M.dat[parent].childtot += dur
+    if M.stack <> []:
+      M.dat[M.stack[-1]].childtot += dur
+  def print_(M):
+    for tmrec in M.dat.values():
+      tmrec.heretot = tmrec.tot-tmrec.childtot
+    R = sorted(M.dat.items(),lambda x,y:-cmp(x[1].heretot,y[1].heretot))
+    print '%7s %7s %5s' % ('Tm Here', 'Tm Avg', 'Count')
+    for L,tmrec in R:
+      print '%7s %7s %5d %s' % ('%.3f'%tmrec.heretot, '%.3f'%(tmrec.heretot/float(tmrec.N)), tmrec.N, L)
+    print
+      
+#TIMER = Timer()
+TIMER = None
+   
 def indent(s):
   x = 0
   for c in s:
@@ -782,6 +821,8 @@ class TextmapView(gtk.VBox):
     if not view:
       return
     
+    if TIMER: TIMER.push('expose')
+    
     if id(view) not in me.connected:
       me.connected[id(view)] = True
       view.connect("scroll-event", me.on_scroll_event)
@@ -834,7 +875,13 @@ class TextmapView(gtk.VBox):
             
     if me.surface_textmap is None or not me.draw_scrollbar_only:
     
+      if TIMER: TIMER.push('document_lines')
+
       lines = document_lines(doc)
+      
+      if TIMER: TIMER.pop('document_lines')
+      
+      if TIMER: TIMER.push('draw textmap')
       
       if id(doc) not in me.doc_attached_data:
         docrec = struct()
@@ -874,15 +921,22 @@ class TextmapView(gtk.VBox):
       cr.translate(margin,0)
       w -= margin # an d here
             
+      if TIMER: TIMER.push('downsample')
       max_scale = 3
       lines, scale, downsampled = downsample_lines(lines, h, 2, max_scale)
+      if TIMER: TIMER.pop('downsample')
       
       smooshed = False
       if downsampled or scale < max_scale:
         smooshed = True
       
+      if TIMER: TIMER.push('lines_add_section_len')
       lines = lines_add_section_len(lines)
+      if TIMER: TIMER.pop('lines_add_section_len')
+      
+      if TIMER: TIMER.push('lines_mark_changed_sections')
       lines = lines_mark_changed_sections(lines)
+      if TIMER: TIMER.pop('lines_mark_changed_sections')
 
       n = len(lines)
       lineH = h/n
@@ -899,6 +953,8 @@ class TextmapView(gtk.VBox):
       #print pr_text_extents(' .',cr)
       
       # ------------------------ display text silhouette -----------------------
+      if TIMER: TIMER.push('draw silhouette')
+      
       if dark(*fg):
         faded_fg = lighten(.5,*fg)
       else:
@@ -954,11 +1010,15 @@ class TextmapView(gtk.VBox):
           sections.append((line, lastH))
           
         cr.move_to(0, sofarH)
+        
+      if TIMER: TIMER.pop('draw silhouette')
           
       # ------------------- display sections and subsections labels  ------------------
 
       if me.draw_sections:
         # Subsections
+        
+        if TIMER: TIMER.push('draw subsections')
         
         if dark(*bg):
           bg_rect_C = lighten(.1,*bg)
@@ -997,8 +1057,11 @@ class TextmapView(gtk.VBox):
               #fit_text(line.subsection, 10000, 10000, fg, bg, cr)
               show_section_label(line.subsection, fg, bg_rect_C, cr)
               
+        if TIMER: TIMER.pop('draw subsections')
+        
         # Sections
         
+        if TIMER: TIMER.push('draw sections')
         cr.set_font_size(12)
         for line, lastH in sections:
         
@@ -1025,6 +1088,8 @@ class TextmapView(gtk.VBox):
             cr.move_to(r.x+r.tw+2,r.y-r.th/2+2)
             cr.line_to(w,r.y-r.th/2+2)
             cr.stroke()
+            
+        if TIMER: TIMER.pop('draw sections')
           
       # ------------------ translate back for the scroll bar -------------------
       
@@ -1033,7 +1098,7 @@ class TextmapView(gtk.VBox):
 
       # -------------------------- mark lines markers --------------------------
             
-
+      if TIMER: TIMER.push('draw line markers')
       for line in lines:
         if line.search_match:
           clr = searchBG
@@ -1044,17 +1109,24 @@ class TextmapView(gtk.VBox):
         cr.set_source_rgb(*clr)      
         cr.rectangle(w-3,line.y-2,2,5)
         cr.fill()
+      if TIMER: TIMER.pop('draw line markers')
+        
+      if TIMER: TIMER.pop('draw textmap')
       
       # save
       me.surface_textmap = cr.pop_group() # everything but the scrollbar
       me.lines = lines
 
+    if TIMER: TIMER.push('surface_textmap')
     cr.set_source(me.surface_textmap)
     cr.rectangle(0,0,w,h)
     cr.fill()
+    if TIMER: TIMER.pop('surface_textmap')
         
     # ------------------------------- scrollbar -------------------------------
 
+    if TIMER: TIMER.push('scrollbar')
+    
     topL,botL = visible_lines_top_bottom(me.geditwin)
     
     if topL==0 and botL==doc.get_end_iter().get_line():
@@ -1062,9 +1134,13 @@ class TextmapView(gtk.VBox):
     else:
       scrollbar(me.lines,topL,botL,w,h,bg,cr)
     
+    if TIMER: TIMER.pop('scrollbar')
     
     me.topL = topL
     me.draw_scrollbar_only = False
+    
+    if TIMER: TIMER.pop('expose')
+    if TIMER: TIMER.print_()
       
         
 class TextmapWindowHelper:
