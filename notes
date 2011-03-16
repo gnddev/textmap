@@ -6,6 +6,7 @@ MAKING RELEASE
   cp textmap-0.2beta.tgz textmap-0.2beta.zip CHANGELOG.txt ../../webpage/htm/
   
   # tag release
+  git tag Release-0.2beta
   
   # then on webpage
   cd ../../webpage/htm
