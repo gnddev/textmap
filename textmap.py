@@ -782,11 +782,13 @@ class TextmapView(gtk.VBox):
     
   def on_scroll_event(me,view,event):
     me.last_scroll_time = time.time()
-    if me.draw_sections: # we are in the middle of scrolling
-      me.draw_scrollbar_only = True
-    else:
-      me.draw_sections = True # for the first scroll, turn on section names
-    gobject.timeout_add(500,me.on_scroll_finished) # this will fade out sections
+    if 0:
+      if me.draw_sections: # we are in the middle of scrolling
+        me.draw_scrollbar_only = True
+      else:
+        me.draw_sections = True # for the first scroll, turn on section names
+      gobject.timeout_add(500,me.on_scroll_finished) # this will fade out sections
+    me.draw_scrollbar_only = True
     queue_refresh(me)
     
   def on_search_highlight_updated(me,doc,t,u):
