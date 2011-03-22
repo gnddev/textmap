@@ -670,6 +670,8 @@ class TextmapView(gtk.VBox):
     # need this bc of a cairo bug, keep references to all our font faces
     me.font_face_keepalive = None
     
+    me.lines = None
+    
      #'''
      #   gtk.gdk.SCROLL_UP, 
      #  gtk.gdk.SCROLL_DOWN, 
@@ -793,6 +795,10 @@ class TextmapView(gtk.VBox):
     
   def on_search_highlight_updated(me,doc,t,u):
     #print 'on_search_highlight_updated:',repr(doc.get_search_text())
+    if id(doc) not in me.doc_attached_data:
+      queue_refresh(me)
+      return
+      
     docrec = me.doc_attached_data[id(doc)]
     s = doc.get_search_text()[0]
     if s <> docrec.search_text:
@@ -874,7 +880,23 @@ class TextmapView(gtk.VBox):
     # Are we drawing everything, or just the scrollbar?
     fontfamily = 'sans-serif'
     cr.select_font_face('monospace', cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
+    
+    me.topL,botL = visible_lines_top_bottom(me.geditwin)
+        
+    # bg
+    if 1:
+      #cr.set_source_rgb(46/256.,52/256.,54/256.)
+      cr.set_source_rgb(*bg)
+      cr.move_to(0,0)
+      cr.rectangle(0,0,w,h)
+      cr.fill()
+      cr.move_to(0,0)
             
+    search_text = doc.get_search_text()[0]
+      
+    if not search_text and not me.draw_sections:
+        return
+      
     if me.surface_textmap is None or not me.draw_scrollbar_only:
     
       if TIMER: TIMER.push('document_lines')
@@ -901,19 +923,10 @@ class TextmapView(gtk.VBox):
       if BUG_MASK & BUG_DOC_GET_SEARCH_TEXT:
         pass
       else:
-        docrec.search_text = doc.get_search_text()[0]
+        docrec.search_text = search_text
         lines = lines_mark_search_matches(lines,docrec)
      
       cr.push_group()
-      
-      # bg
-      if 1:
-        #cr.set_source_rgb(46/256.,52/256.,54/256.)
-        cr.set_source_rgb(*bg)
-        cr.move_to(0,0)
-        cr.rectangle(0,0,w,h)
-        cr.fill()
-        cr.move_to(0,0)
       
       if not lines:
         return
@@ -1119,6 +1132,8 @@ class TextmapView(gtk.VBox):
       me.surface_textmap = cr.pop_group() # everything but the scrollbar
       me.lines = lines
 
+    # END DISPLAY SILHOUETTE
+    
     if TIMER: TIMER.push('surface_textmap')
     cr.set_source(me.surface_textmap)
     cr.rectangle(0,0,w,h)
@@ -1129,16 +1144,13 @@ class TextmapView(gtk.VBox):
 
     if TIMER: TIMER.push('scrollbar')
     
-    topL,botL = visible_lines_top_bottom(me.geditwin)
-    
-    if topL==0 and botL==doc.get_end_iter().get_line():
+    if me.topL==0 and botL==doc.get_end_iter().get_line():
       pass # everything is visible, don't draw scrollbar
     else:
-      scrollbar(me.lines,topL,botL,w,h,bg,cr)
+      scrollbar(me.lines,me.topL,botL,w,h,bg,cr)
     
     if TIMER: TIMER.pop('scrollbar')
     
-    me.topL = topL
     me.draw_scrollbar_only = False
     
     if TIMER: TIMER.pop('expose')
