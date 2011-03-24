@@ -894,8 +894,8 @@ class TextmapView(gtk.VBox):
             
     search_text = doc.get_search_text()[0]
       
-    if not search_text and not me.draw_sections:
-        return
+    #if not search_text and not me.draw_sections:
+    #    return
       
     if me.surface_textmap is None or not me.draw_scrollbar_only:
     
