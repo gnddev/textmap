@@ -636,20 +636,24 @@ class TextmapView(Gtk.VBox):
     self.geditwin = geditwin
     
     darea = Gtk.DrawingArea()
-    darea.connect("expose-event", self.expose)
+    print '---- the darea -------------------------------------'
+    print darea.connect
+    print '---- the geditwin -------------------------------------'
+    print geditwin
+    #    darea.connect("expose-event", self.expose)
+    #    
+    #    darea.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+    #    darea.connect("button-press-event", self.button_press)
+    #    darea.connect("scroll-event", self.on_darea_scroll_event)
+    #    darea.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK)
+    #    darea.connect("enter-notify-event", self.on_darea_enter_notify_event)
+    #    darea.add_events(Gdk.EventMask.LEAVE_NOTIFY_MASK)
+    #    darea.connect("leave-notify-event", self.on_darea_leave_notify_event)
+    #    darea.add_events(Gdk.EventMask.POINTER_MOTION_MASK)
+    #    darea.connect("motion-notify-event", self.on_darea_motion_notify_event)
+    #    
     
-    darea.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
-    darea.connect("button-press-event", self.button_press)
-    darea.connect("scroll-event", self.on_darea_scroll_event)
-    darea.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK)
-    darea.connect("enter-notify-event", self.on_darea_enter_notify_event)
-    darea.add_events(Gdk.EventMask.LEAVE_NOTIFY_MASK)
-    darea.connect("leave-notify-event", self.on_darea_leave_notify_event)
-    darea.add_events(Gdk.EventMask.POINTER_MOTION_MASK)
-    darea.connect("motion-notify-event", self.on_darea_motion_notify_event)
-    
-    
-    self.pack_start(darea, True, True)
+    self.pack_start(darea, expand=True, fill=True, padding=1)
     
     self.darea = darea
     #probj(self.darea)
@@ -1165,7 +1169,7 @@ class TextmapWindowHelper:
     image = Gtk.Image()
     image.set_from_stock(Gtk.STOCK_DND_MULTIPLE, Gtk.IconSize.BUTTON)
     self.textmapview = TextmapView(self.window)
-    self.ui_id = panel.add_item(self.textmapview, "TextMap", image)
+    self.ui_id = panel.add_item(self.textmapview, 'textmap', "TextMap", image)
     
     self.panel = panel
 
