@@ -14,10 +14,8 @@
 # this program; if not, write to the Free Software Foundation, Inc., 51
 # Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
-import gtk
+from gi.repository import Gedit, GObject, Gtk, Gdk
 import time
-import gobject
-import gedit
 import sys
 import math
 import cairo
@@ -25,7 +23,7 @@ import re
 import copy
 import platform
 
-version = "0.2 beta"
+version = "0.3.0"
 
 # ------------------------------------------------------------------------------
 # These regular expressions are applied in sequence ot each line, to determine
@@ -42,6 +40,7 @@ SectionREs = (
   re.compile('^\w+[\w\s\*]*?(\w*)\s*\('),                  # C method
   
   re.compile('^function\s*(\w+)\s*\('),                    # javascript method
+  #re.compile('^\-\>\s*(\w+)\s*'),                          # coffeescript method
   
   re.compile('\w+[\w\s]*?class (\w*)'),                    # java class
 )
@@ -200,34 +199,35 @@ BUG_DOC_GET_SEARCH_TEXT = 4
 if platform.system() == 'Darwin':
   BUG_MASK |= BUG_CAIRO_MAC_FONT_REF  # extra decref causes aborts, use less font ops
 
-major,minor,patch = gedit.version
-if major<=2 and minor<28:
-  BUG_MASK |= BUG_CAIRO_TEXT_EXTENTS  # some reference problem
-  BUG_MASK |= BUG_DOC_GET_SEARCH_TEXT # missing INCREF then
+
+#major,minor,patch = Gedit.version  
+# detecting any gedit less than 3 is pointless since this version of the plugin wouldn't load at all in gedit2
+#if major<=2 and minor<28:
+#  BUG_MASK |= BUG_CAIRO_TEXT_EXTENTS  # some reference problem
+#  BUG_MASK |= BUG_DOC_GET_SEARCH_TEXT # missing INCREF then
   
 def text_extents(str,cr):
   "code around bug in older cairo"
-  
-  if BUG_MASK & BUG_CAIRO_TEXT_EXTENTS:  
-    if str:
-      x, y = cr.get_current_point()
-      cr.move_to(0,-5)
-      cr.show_text(str)
-      nx,ny = cr.get_current_point()
-      cr.move_to(x,y)
-    else:
-      nx = 0
-      ny = 0
+  #  
+  #  if BUG_MASK & BUG_CAIRO_TEXT_EXTENTS:  
+  #    if str:
+  #      x, y = cr.get_current_point()
+  #      cr.move_to(0,-5)
+  #      cr.show_text(str)
+  #      nx,ny = cr.get_current_point()
+  #      cr.move_to(x,y)
+  #    else:
+  #      nx = 0
+  #      ny = 0
 
-    #print repr(str),x,nx,y,ny
-    ascent, descent, height, max_x_advance, max_y_advance = cr.font_extents()
-    
-    return nx, height
-  
-  else:
-  
-    x_bearing, y_bearing, width, height, x_advance, y_advance = cr.text_extents(str)
-    return width, height
+  #    #print repr(str),x,nx,y,ny
+  #    ascent, descent, height, max_x_advance, max_y_advance = cr.font_extents()
+  #    
+  #    return nx, height
+  #  
+  #  else:
+  x_bearing, y_bearing, width, height, x_advance, y_advance = cr.text_extents(str)
+  return width, height
     
 def pr_text_extents(s,cr):
   x_bearing, y_bearing, width, height, x_advance, y_advance = cr.text_extents(s)
@@ -379,7 +379,7 @@ def scrollbar(lines,topI,botI,w,h,bg,cr,scrollbarW=10):
   if botY is None:
     botY = lines[-1].y
 
-  if 0: # bg rectangle     
+  if 0: # bg rectangle
     cr.set_source_rgba(.1,.1,.1,.35)
     cr.rectangle(w-scrollbarW,0,scrollbarW,topY)
     cr.fill()
@@ -568,7 +568,10 @@ def queue_refresh(textmapview):
   except AttributeError:
     win = textmapview.darea.window
   if win:
-    w,h = win.get_size()
+    #print dir(win)
+    w = win.get_width()
+    h = win.get_height()
+    #w,h = win.get_size() # AttributeError: 'gtk.gdk.X11Window' object has no attribute 'get_size'
     textmapview.darea.queue_draw_area(0,0,w,h)
     
 def str2rgb(s):
@@ -630,61 +633,61 @@ def lines_mark_search_matches(lines,docrec):
   
 Split_Off_Indent_Pattern = re.compile('(\s*)(.*)$')
       
-class TextmapView(gtk.VBox):
-  def __init__(me, geditwin):
-    gtk.VBox.__init__(me)
+class TextmapView(Gtk.VBox):
+  def __init__(self, geditwin):
+    GObject.GObject.__init__(self)
     
-    me.geditwin = geditwin
+    self.geditwin = geditwin
     
-    darea = gtk.DrawingArea()
-    darea.connect("expose-event", me.expose)
+    darea = Gtk.DrawingArea()
+    darea.connect('draw', self.expose)
     
-    darea.add_events(gtk.gdk.BUTTON_PRESS_MASK)
-    darea.connect("button-press-event", me.button_press)
-    darea.connect("scroll-event", me.on_darea_scroll_event)
-    darea.add_events(gtk.gdk.ENTER_NOTIFY_MASK)
-    darea.connect("enter-notify-event", me.on_darea_enter_notify_event)
-    darea.add_events(gtk.gdk.LEAVE_NOTIFY_MASK)
-    darea.connect("leave-notify-event", me.on_darea_leave_notify_event)
-    darea.add_events(gtk.gdk.POINTER_MOTION_MASK)
-    darea.connect("motion-notify-event", me.on_darea_motion_notify_event)
+    darea.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+    darea.connect("button-press-event", self.button_press)
+    darea.connect("scroll-event", self.on_darea_scroll_event)
+    darea.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK)
+    darea.connect("enter-notify-event", self.on_darea_enter_notify_event)
+    darea.add_events(Gdk.EventMask.LEAVE_NOTIFY_MASK)
+    darea.connect("leave-notify-event", self.on_darea_leave_notify_event)
+    darea.add_events(Gdk.EventMask.POINTER_MOTION_MASK)
+    darea.connect("motion-notify-event", self.on_darea_motion_notify_event)
     
     
-    me.pack_start(darea, True, True)
+    self.pack_start(darea, expand=True, fill=True, padding=1)
     
-    me.darea = darea
-    #probj(me.darea)
+    self.darea = darea
+    #probj(self.darea)
 
-    me.connected = {}
-    me.draw_scrollbar_only = False
-    me.draw_sections = False
-    me.topL = None
-    me.surface_textmap = None
+    self.connected = {}
+    self.draw_scrollbar_only = False
+    self.draw_sections = False
+    self.topL = None
+    self.surface_textmap = None
     
-    me.line_count = 0
+    self.line_count = 0
     
-    me.doc_attached_data = {}
+    self.doc_attached_data = {}
     
-    me.show_all()
+    self.show_all()
     
     # need this bc of a cairo bug, keep references to all our font faces
-    me.font_face_keepalive = None
+    self.font_face_keepalive = None
     
-    me.lines = None
+    self.lines = None
     
      #'''
-     #   gtk.gdk.SCROLL_UP, 
-     #  gtk.gdk.SCROLL_DOWN, 
-     #  gtk.gdk.SCROLL_LEFT, 
-     #  gtk.gdk.SCROLL_RIGHT
+     #   Gdk.ScrollDirection.UP, 
+     #  Gdk.ScrollDirection.DOWN, 
+     #  Gdk.ScrollDirection.LEFT, 
+     #  Gdk.ScrollDirection.RIGHT
    #
      #Example:
    #
      #  def on_button_scroll_event(button, event):
-     #    if event.direction == gtk.gdk.SCROLL_UP:
+     #    if event.direction == Gdk.ScrollDirection.UP:
      #       print "You scrolled up"
      #       
-     #event = gtk.gdk.Event(gtk.gdk.EXPOSE)
+     #event = Gdk.Event(Gdk.EXPOSE)
      #
      #      def motion_notify(ruler, event):
      #          return ruler.emit("motion_notify_event", event)
@@ -694,25 +697,25 @@ class TextmapView(gtk.VBox):
      #                               self.vruler)
      #'''
   
-  def on_darea_motion_notify_event(me, widget, event):
+  def on_darea_motion_notify_event(self, widget, event):
     #probj(event)
     #print event.type
-    if event.state & gtk.gdk.BUTTON1_MASK:
-      me.scroll_from_y_mouse_pos(event.y)
+    if event.get_state() & Gdk.ModifierType.BUTTON1_MASK:
+      self.scroll_from_y_mouse_pos(event.y)
       
-  def on_darea_enter_notify_event(me, widget, event):
+  def on_darea_enter_notify_event(self, widget, event):
     if event.mode.value_name == 'GDK_CROSSING_GTK_UNGRAB':
       return
     #print 'in here enter'
-    me.draw_sections = True
-    queue_refresh(me)
+    self.draw_sections = True
+    queue_refresh(self)
     
-  def on_darea_leave_notify_event(me, widget, event):
+  def on_darea_leave_notify_event(self, widget, event):
     #print 'in here leaving'
-    me.draw_sections = False
-    queue_refresh(me)
+    self.draw_sections = False
+    queue_refresh(self)
     
-  def on_darea_scroll_event(me, widget, event):
+  def on_darea_scroll_event(self, widget, event):
     pass
     #print 'XXX on_darea_scroll_event'
     
@@ -720,47 +723,47 @@ class TextmapView(gtk.VBox):
     # somehow pass this on, scroll the document/view
     #print type(widget),widget,type(event),event
     #probj(event)
-    #view = me.geditwin.get_active_view()
+    #view = self.geditwin.get_active_view()
     #if not view:
     #  return
     #return view.emit('scroll-event',event)
 
     # the following crashes
     #pagesize = 12
-    #topI,botI = visible_lines_top_bottom(me.geditwin)
-    #if event.direction == gtk.gdk.SCROLL_UP:
+    #topI,botI = visible_lines_top_bottom(self.geditwin)
+    #if event.direction == Gdk.ScrollDirection.UP:
     #  newI = topI - pagesize
-    #elif event.direction == gtk.gdk.SCROLL_DOWN:
+    #elif event.direction == Gdk.ScrollDirection.DOWN:
     #  newI = botI + pagesize
     #else:
     #  return
     #  
-    #view = me.geditwin.get_active_view()
-    #doc  = me.geditwin.get_active_tab().get_document()
+    #view = self.geditwin.get_active_view()
+    #doc  = self.geditwin.get_active_tab().get_document()
     #view.scroll_to_iter(doc.get_iter_at_line_index(newI,0),0,False,0,0)
     #
-    #queue_refresh(me)
+    #queue_refresh(self)
     
-  def on_doc_cursor_moved(me, doc):
+  def on_doc_cursor_moved(self, doc):
     #new_line_count = doc.get_line_count()
     #print 'new_line_count',new_line_count
-    topL = visible_lines_top_bottom(me.geditwin)[0]
-    if topL <> me.topL:
-      queue_refresh(me)
-      me.draw_scrollbar_only = True
+    topL = visible_lines_top_bottom(self.geditwin)[0]
+    if topL <> self.topL:
+      queue_refresh(self)
+      self.draw_scrollbar_only = True
     
-  def on_insert_text(me, doc, piter, text, len):
+  def on_insert_text(self, doc, piter, text, len):
     pass
     #if len < 20 and '\n' in text:
     #  print 'piter',piter,'text',repr(text),'len',len
     
-  def scroll_from_y_mouse_pos(me,y):
-    for line in me.lines:
+  def scroll_from_y_mouse_pos(self,y):
+    for line in self.lines:
       if line.y > y:
         break
     #print line.i, repr(line.raw)
-    view = me.geditwin.get_active_view()
-    doc = me.geditwin.get_active_tab().get_document()
+    view = self.geditwin.get_active_view()
+    doc = self.geditwin.get_active_tab().get_document()
     
     #doc.place_cursor(doc.get_iter_at_line_index(line.i,0))
     #view.scroll_to_cursor()
@@ -768,75 +771,75 @@ class TextmapView(gtk.VBox):
     
     view.scroll_to_iter(doc.get_iter_at_line_index(line.i,0),0,True,0,.5)
     
-    queue_refresh(me)
+    queue_refresh(self)
         
-  def button_press(me, widget, event):
-    me.scroll_from_y_mouse_pos(event.y)
+  def button_press(self, widget, event):
+    self.scroll_from_y_mouse_pos(event.y)
     
-  def on_scroll_finished(me):
-    #print 'in here',me.last_scroll_time,time.time()-me.last_scroll_time
-    if time.time()-me.last_scroll_time > .47:
-      if me.draw_sections:
-        me.draw_sections = False
-        me.draw_scrollbar_only = False
-        queue_refresh(me)
+  def on_scroll_finished(self):
+    #print 'in here',self.last_scroll_time,time.time()-self.last_scroll_time
+    if time.time()-self.last_scroll_time > .47:
+      if self.draw_sections:
+        self.draw_sections = False
+        self.draw_scrollbar_only = False
+        queue_refresh(self)
     return False
     
-  def on_scroll_event(me,view,event):
-    me.last_scroll_time = time.time()
+  def on_scroll_event(self,view,event):
+    self.last_scroll_time = time.time()
     if 0:
-      if me.draw_sections: # we are in the middle of scrolling
-        me.draw_scrollbar_only = True
+      if self.draw_sections: # we are in the middle of scrolling
+        self.draw_scrollbar_only = True
       else:
-        me.draw_sections = True # for the first scroll, turn on section names
-      gobject.timeout_add(500,me.on_scroll_finished) # this will fade out sections
-    me.draw_scrollbar_only = True
-    queue_refresh(me)
+        self.draw_sections = True # for the first scroll, turn on section names
+      GObject.timeout_add(500,self.on_scroll_finished) # this will fade out sections
+    self.draw_scrollbar_only = True
+    queue_refresh(self)
     
-  def on_search_highlight_updated(me,doc,t,u):
+  def on_search_highlight_updated(self,doc,t,u):
     #print 'on_search_highlight_updated:',repr(doc.get_search_text())
-    if id(doc) not in me.doc_attached_data:
-      queue_refresh(me)
+    if id(doc) not in self.doc_attached_data:
+      queue_refresh(self)
       return
       
-    docrec = me.doc_attached_data[id(doc)]
-    s = doc.get_search_text()[0]
+    docrec = self.doc_attached_data[id(doc)]
+    s = doc.get_search_text()[0] #TypeError: get_search_text() takes exactly 2 arguments (1 given)
     if s <> docrec.search_text:
       docrec.search_text = s
-      queue_refresh(me)    
+      queue_refresh(self)    
     
-  def test_event(me, ob, event):
+  def test_event(self, ob, event):
     print 'here',ob
     
-  def save_refs_to_all_font_faces(me, cr, *scales):
-    me.font_face_keepalive = []
+  def save_refs_to_all_font_faces(self, cr, *scales):
+    self.font_face_keepalive = []
     for each in scales:
       cr.set_font_size(each)
-      me.font_face_keepalive.append(cr.get_font_face())
+      self.font_face_keepalive.append(cr.get_font_face())
     
-  def expose(me, widget, event):
-    doc = me.geditwin.get_active_tab().get_document()
+  def expose(self, widget, event):
+    doc = self.geditwin.get_active_tab().get_document()
     if not doc:   # nothing open yet
       return
     
-    if id(doc) not in me.connected:
-      me.connected[id(doc)] = True
-      doc.connect("cursor-moved", me.on_doc_cursor_moved)
-      doc.connect("insert-text", me.on_insert_text)
-      doc.connect("search-highlight-updated", me.on_search_highlight_updated)
+    if id(doc) not in self.connected:
+      self.connected[id(doc)] = True
+      doc.connect("cursor-moved", self.on_doc_cursor_moved)
+      doc.connect("insert-text", self.on_insert_text)
+      doc.connect("search-highlight-updated", self.on_search_highlight_updated)
       
-    view = me.geditwin.get_active_view()
+    view = self.geditwin.get_active_view()
     if not view:
       return
     
     if TIMER: TIMER.push('expose')
     
-    if id(view) not in me.connected:
-      me.connected[id(view)] = True
-      view.connect("scroll-event", me.on_scroll_event)
-      #view.connect("start-interactive-goto-line", me.test_event)
-      #view.connect("start-interactive-search", me.test_event)
-      #view.connect("reset-searched-text", me.test_event)
+    if id(view) not in self.connected:
+      self.connected[id(view)] = True
+      view.connect("scroll-event", self.on_scroll_event)
+      #view.connect("start-interactive-goto-line", self.test_event)
+      #view.connect("start-interactive-search", self.test_event)
+      #view.connect("reset-searched-text", self.test_event)
       
     bg = (0,0,0)
     fg = (1,1,1)
@@ -866,14 +869,16 @@ class TextmapView(gtk.VBox):
     searchBG = (0,1,0)
       
     
-    #print doc
+    print doc
        
     try:
+      #apparently this isn't best approach anymore... http://stackoverflow.com/questions/10270080/how-to-draw-a-gdkpixbuf-using-gtk3-and-pygobject
       win = widget.get_window()
     except AttributeError:
       win = widget.window
-    w,h = map(float,win.get_size())
-    cr = widget.window.cairo_create()
+    w,h = map(float,[win.get_width(), win.get_height()]) # AttributeError: 'gtk.gdk.X11Window' object has no attribute 'get_size'
+    cr = win.cairo_create()
+    #cr = widget.window.cairo_create() #AttributeError: 'DrawingArea' object has no attribute 'window'
     
     #probj(cr,'rgb')
     
@@ -881,7 +886,7 @@ class TextmapView(gtk.VBox):
     fontfamily = 'sans-serif'
     cr.select_font_face('monospace', cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_NORMAL)
     
-    me.topL,botL = visible_lines_top_bottom(me.geditwin)
+    self.topL,botL = visible_lines_top_bottom(self.geditwin)
         
     # bg
     if 1:
@@ -892,12 +897,12 @@ class TextmapView(gtk.VBox):
       cr.fill()
       cr.move_to(0,0)
             
-    search_text = doc.get_search_text()[0]
+    search_text = doc.get_search_text()[0] #TypeError: get_search_text() takes exactly 2 arguments (1 given)
       
-    #if not search_text and not me.draw_sections:
+    #if not search_text and not self.draw_sections:
     #    return
       
-    if me.surface_textmap is None or not me.draw_scrollbar_only:
+    if self.surface_textmap is None or not self.draw_scrollbar_only:
     
       if TIMER: TIMER.push('document_lines')
 
@@ -907,15 +912,15 @@ class TextmapView(gtk.VBox):
       
       if TIMER: TIMER.push('draw textmap')
       
-      if id(doc) not in me.doc_attached_data:
+      if id(doc) not in self.doc_attached_data:
         docrec = struct()
-        me.doc_attached_data[id(doc)] = docrec
+        self.doc_attached_data[id(doc)] = docrec
         docrec.original_lines_info = None # we skip the first one, its empty
         docrec.search_text = None
         for l in lines:
           l.changed = False
       else:
-        docrec = me.doc_attached_data[id(doc)]
+        docrec = self.doc_attached_data[id(doc)]
         if docrec.original_lines_info == None:
           docrec.original_lines_info = init_original_lines_info(doc,lines)
         lines = mark_changed_lines(doc, docrec.original_lines_info, lines)
@@ -958,8 +963,8 @@ class TextmapView(gtk.VBox):
       
       #print 'doc',doc.get_uri(), lines[0].raw
       
-      if BUG_MASK & BUG_CAIRO_MAC_FONT_REF and me.font_face_keepalive is None:
-        me.save_refs_to_all_font_faces(cr,scale,scale+3,10,12)
+      if BUG_MASK & BUG_CAIRO_MAC_FONT_REF and self.font_face_keepalive is None:
+        self.save_refs_to_all_font_faces(cr,scale,scale+3,10,12)
       
       cr.set_font_size(scale)
       whitespaceW = text_extents('.',cr)[0]
@@ -992,7 +997,7 @@ class TextmapView(gtk.VBox):
             cr.set_source_rgb(*searchBG)
           elif line.changed:
             cr.set_source_rgb(*changeCLR)
-          elif me.draw_sections:
+          elif self.draw_sections:
             cr.set_source_rgb(*faded_fg)
           else:
             cr.set_source_rgb(*fg)
@@ -1030,7 +1035,7 @@ class TextmapView(gtk.VBox):
           
       # ------------------- display sections and subsections labels  ------------------
 
-      if me.draw_sections:
+      if self.draw_sections:
         # Subsections
         
         if TIMER: TIMER.push('draw subsections')
@@ -1129,13 +1134,13 @@ class TextmapView(gtk.VBox):
       if TIMER: TIMER.pop('draw textmap')
       
       # save
-      me.surface_textmap = cr.pop_group() # everything but the scrollbar
-      me.lines = lines
+      self.surface_textmap = cr.pop_group() # everything but the scrollbar
+      self.lines = lines
 
     # END DISPLAY SILHOUETTE
     
     if TIMER: TIMER.push('surface_textmap')
-    cr.set_source(me.surface_textmap)
+    cr.set_source(self.surface_textmap)
     cr.rectangle(0,0,w,h)
     cr.fill()
     if TIMER: TIMER.pop('surface_textmap')
@@ -1144,56 +1149,59 @@ class TextmapView(gtk.VBox):
 
     if TIMER: TIMER.push('scrollbar')
     
-    if me.topL==0 and botL==doc.get_end_iter().get_line():
+    if self.topL==0 and botL==doc.get_end_iter().get_line():
       pass # everything is visible, don't draw scrollbar
     else:
-      scrollbar(me.lines,me.topL,botL,w,h,bg,cr)
+      scrollbar(self.lines,self.topL,botL,w,h,bg,cr)
     
     if TIMER: TIMER.pop('scrollbar')
     
-    me.draw_scrollbar_only = False
+    self.draw_scrollbar_only = False
     
     if TIMER: TIMER.pop('expose')
     if TIMER: TIMER.print_()
       
         
 class TextmapWindowHelper:
-  def __init__(me, plugin, window):
-    me.window = window
-    me.plugin = plugin
+  def __init__(self, plugin, window):
+    self.window = window
+    self.plugin = plugin
 
-    panel = me.window.get_side_panel()
-    image = gtk.Image()
-    image.set_from_stock(gtk.STOCK_DND_MULTIPLE, gtk.ICON_SIZE_BUTTON)
-    me.textmapview = TextmapView(me.window)
-    me.ui_id = panel.add_item(me.textmapview, "TextMap", image)
+    panel = self.window.get_side_panel()
+    image = Gtk.Image()
+    image.set_from_stock(Gtk.STOCK_DND_MULTIPLE, Gtk.IconSize.BUTTON)
+    self.textmapview = TextmapView(self.window)
+    self.ui_id = panel.add_item(self.textmapview, 'textmap', "TextMap", image)
     
-    me.panel = panel
+    self.panel = panel
 
-  def deactivate(me):
-    me.window = None
-    me.plugin = None
-    me.textmapview = None
+  def deactivate(self):
+    self.window = None
+    self.plugin = None
+    self.textmapview = None
 
-  def update_ui(me):
-    queue_refresh(me.textmapview)
+  def update_ui(self):
+    queue_refresh(self.textmapview)
     
-class TextmapPlugin(gedit.Plugin):
-  def __init__(me):
-    gedit.Plugin.__init__(me)
-    me._instances = {}
+class TextmapPlugin(GObject.Object, Gedit.WindowActivatable):
+  __gtype_name__ = "TextMap"
+  window = GObject.property(type=Gedit.Window)
 
-  def activate(me, window):
-    me._instances[window] = TextmapWindowHelper(me, window)
+  def __init__(self):
+    GObject.Object.__init__(self)
+    self._instances = {}
 
-  def deactivate(me, window):
-    if window in me._instances:
-      me._instances[window].deactivate()
+  def do_activate(self):
+    self._instances[self.window] = TextmapWindowHelper(self, self.window)
 
-  def update_ui(me, window):
+  def do_deactivate(self):
+    if self.window in self._instances:
+      self._instances[self.window].deactivate()
+
+  def do_update_state(self):
     # Called whenever the window has been updated (active tab
     # changed, etc.)
     #print 'plugin.update_ui'
-    if window in me._instances:
-      me._instances[window].update_ui()
+    if self.window in self._instances:
+      self._instances[self.window].update_ui()
       #window.do_expose_event()

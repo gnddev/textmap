@@ -1,3 +1,6 @@
+v0.3.0, 2012-09-27
+ - intial appempt at gedit3 compatibility
+
 v0.2beta, 2011-03-09
 
  - initial support for sections for other languages (javascript, java, C)
