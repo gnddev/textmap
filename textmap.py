@@ -14,7 +14,7 @@
 # this program; if not, write to the Free Software Foundation, Inc., 51
 # Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
-from gi.repository import Gedit, GObject, Gtk
+from gi.repository import Gedit, GObject, Gtk, Gdk
 import time
 import sys
 import math
@@ -567,7 +567,7 @@ def queue_refresh(textmapview):
   except AttributeError:
     win = textmapview.darea.window
   if win:
-    w,h = win.get_size()
+    w,h = win.get_size() # AttributeError: 'gtk.gdk.X11Window' object has no attribute 'get_size'
     textmapview.darea.queue_draw_area(0,0,w,h)
     
 def str2rgb(s):
@@ -636,22 +636,21 @@ class TextmapView(Gtk.VBox):
     self.geditwin = geditwin
     
     darea = Gtk.DrawingArea()
-    print '---- the darea -------------------------------------'
-    print darea.connect
-    print '---- the geditwin -------------------------------------'
-    print geditwin
-    #    darea.connect("expose-event", self.expose)
-    #    
-    #    darea.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
-    #    darea.connect("button-press-event", self.button_press)
-    #    darea.connect("scroll-event", self.on_darea_scroll_event)
-    #    darea.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK)
-    #    darea.connect("enter-notify-event", self.on_darea_enter_notify_event)
-    #    darea.add_events(Gdk.EventMask.LEAVE_NOTIFY_MASK)
-    #    darea.connect("leave-notify-event", self.on_darea_leave_notify_event)
-    #    darea.add_events(Gdk.EventMask.POINTER_MOTION_MASK)
-    #    darea.connect("motion-notify-event", self.on_darea_motion_notify_event)
-    #    
+    #darea = GObject.GObject
+    
+    #TypeError: <DrawingArea object at 0x1ea8780 (GtkDrawingArea at 0x208bee0)>: unknown signal name: expose-event
+    #darea.connect('expose-event', self.expose)
+    
+    darea.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+    darea.connect("button-press-event", self.button_press)
+    darea.connect("scroll-event", self.on_darea_scroll_event)
+    darea.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK)
+    darea.connect("enter-notify-event", self.on_darea_enter_notify_event)
+    darea.add_events(Gdk.EventMask.LEAVE_NOTIFY_MASK)
+    darea.connect("leave-notify-event", self.on_darea_leave_notify_event)
+    darea.add_events(Gdk.EventMask.POINTER_MOTION_MASK)
+    darea.connect("motion-notify-event", self.on_darea_motion_notify_event)
+    
     
     self.pack_start(darea, expand=True, fill=True, padding=1)
     
