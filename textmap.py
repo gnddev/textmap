@@ -199,7 +199,8 @@ if platform.system() == 'Darwin':
   BUG_MASK |= BUG_CAIRO_MAC_FONT_REF  # extra decref causes aborts, use less font ops
 
 
-major,minor,patch = Gedit.version  # detecting any gedit less than 3 is pointless since this version of the plugin wouldn't load at all in gedit2
+#major,minor,patch = Gedit.version  
+# detecting any gedit less than 3 is pointless since this version of the plugin wouldn't load at all in gedit2
 #if major<=2 and minor<28:
 #  BUG_MASK |= BUG_CAIRO_TEXT_EXTENTS  # some reference problem
 #  BUG_MASK |= BUG_DOC_GET_SEARCH_TEXT # missing INCREF then
