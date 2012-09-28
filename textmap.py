@@ -14,9 +14,9 @@
 # this program; if not, write to the Free Software Foundation, Inc., 51
 # Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
-import gtk
+from gi.repository import Gtk
 import time
-import gobject
+from gi.repository import GObject
 import gedit
 import sys
 import math
@@ -630,23 +630,23 @@ def lines_mark_search_matches(lines,docrec):
   
 Split_Off_Indent_Pattern = re.compile('(\s*)(.*)$')
       
-class TextmapView(gtk.VBox):
+class TextmapView(Gtk.VBox):
   def __init__(me, geditwin):
-    gtk.VBox.__init__(me)
+    GObject.GObject.__init__(me)
     
     me.geditwin = geditwin
     
-    darea = gtk.DrawingArea()
+    darea = Gtk.DrawingArea()
     darea.connect("expose-event", me.expose)
     
-    darea.add_events(gtk.gdk.BUTTON_PRESS_MASK)
+    darea.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
     darea.connect("button-press-event", me.button_press)
     darea.connect("scroll-event", me.on_darea_scroll_event)
-    darea.add_events(gtk.gdk.ENTER_NOTIFY_MASK)
+    darea.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK)
     darea.connect("enter-notify-event", me.on_darea_enter_notify_event)
-    darea.add_events(gtk.gdk.LEAVE_NOTIFY_MASK)
+    darea.add_events(Gdk.EventMask.LEAVE_NOTIFY_MASK)
     darea.connect("leave-notify-event", me.on_darea_leave_notify_event)
-    darea.add_events(gtk.gdk.POINTER_MOTION_MASK)
+    darea.add_events(Gdk.EventMask.POINTER_MOTION_MASK)
     darea.connect("motion-notify-event", me.on_darea_motion_notify_event)
     
     
@@ -673,18 +673,18 @@ class TextmapView(gtk.VBox):
     me.lines = None
     
      #'''
-     #   gtk.gdk.SCROLL_UP, 
-     #  gtk.gdk.SCROLL_DOWN, 
-     #  gtk.gdk.SCROLL_LEFT, 
-     #  gtk.gdk.SCROLL_RIGHT
+     #   Gdk.ScrollDirection.UP, 
+     #  Gdk.ScrollDirection.DOWN, 
+     #  Gdk.ScrollDirection.LEFT, 
+     #  Gdk.ScrollDirection.RIGHT
    #
      #Example:
    #
      #  def on_button_scroll_event(button, event):
-     #    if event.direction == gtk.gdk.SCROLL_UP:
+     #    if event.direction == Gdk.ScrollDirection.UP:
      #       print "You scrolled up"
      #       
-     #event = gtk.gdk.Event(gtk.gdk.EXPOSE)
+     #event = Gdk.Event(Gdk.EXPOSE)
      #
      #      def motion_notify(ruler, event):
      #          return ruler.emit("motion_notify_event", event)
@@ -697,7 +697,7 @@ class TextmapView(gtk.VBox):
   def on_darea_motion_notify_event(me, widget, event):
     #probj(event)
     #print event.type
-    if event.state & gtk.gdk.BUTTON1_MASK:
+    if event.get_state() & Gdk.ModifierType.BUTTON1_MASK:
       me.scroll_from_y_mouse_pos(event.y)
       
   def on_darea_enter_notify_event(me, widget, event):
@@ -728,9 +728,9 @@ class TextmapView(gtk.VBox):
     # the following crashes
     #pagesize = 12
     #topI,botI = visible_lines_top_bottom(me.geditwin)
-    #if event.direction == gtk.gdk.SCROLL_UP:
+    #if event.direction == Gdk.ScrollDirection.UP:
     #  newI = topI - pagesize
-    #elif event.direction == gtk.gdk.SCROLL_DOWN:
+    #elif event.direction == Gdk.ScrollDirection.DOWN:
     #  newI = botI + pagesize
     #else:
     #  return
@@ -789,7 +789,7 @@ class TextmapView(gtk.VBox):
         me.draw_scrollbar_only = True
       else:
         me.draw_sections = True # for the first scroll, turn on section names
-      gobject.timeout_add(500,me.on_scroll_finished) # this will fade out sections
+      GObject.timeout_add(500,me.on_scroll_finished) # this will fade out sections
     me.draw_scrollbar_only = True
     queue_refresh(me)
     
@@ -1163,8 +1163,8 @@ class TextmapWindowHelper:
     me.plugin = plugin
 
     panel = me.window.get_side_panel()
-    image = gtk.Image()
-    image.set_from_stock(gtk.STOCK_DND_MULTIPLE, gtk.ICON_SIZE_BUTTON)
+    image = Gtk.Image()
+    image.set_from_stock(Gtk.STOCK_DND_MULTIPLE, Gtk.IconSize.BUTTON)
     me.textmapview = TextmapView(me.window)
     me.ui_id = panel.add_item(me.textmapview, "TextMap", image)
     

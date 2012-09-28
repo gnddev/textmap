@@ -2,6 +2,7 @@
 Loader=python
 Module=textmap
 IAge=3
+
 Name=Text Map
 Description=Navigatable thumbnail of the entire file
 Authors=Dan Gindikin <dgindikin@gmail.com>
