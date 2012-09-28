@@ -567,7 +567,10 @@ def queue_refresh(textmapview):
   except AttributeError:
     win = textmapview.darea.window
   if win:
-    w,h = win.get_size() # AttributeError: 'gtk.gdk.X11Window' object has no attribute 'get_size'
+    #print dir(win)
+    w = win.get_width()
+    h = win.get_height()
+    #w,h = win.get_size() # AttributeError: 'gtk.gdk.X11Window' object has no attribute 'get_size'
     textmapview.darea.queue_draw_area(0,0,w,h)
     
 def str2rgb(s):
@@ -636,10 +639,7 @@ class TextmapView(Gtk.VBox):
     self.geditwin = geditwin
     
     darea = Gtk.DrawingArea()
-    #darea = GObject.GObject
-    
-    #TypeError: <DrawingArea object at 0x1ea8780 (GtkDrawingArea at 0x208bee0)>: unknown signal name: expose-event
-    #darea.connect('expose-event', self.expose)
+    darea.connect('draw', self.expose)
     
     darea.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
     darea.connect("button-press-event", self.button_press)
@@ -871,11 +871,12 @@ class TextmapView(Gtk.VBox):
     #print doc
        
     try:
+      #apparently this isn't best approach anymore... http://stackoverflow.com/questions/10270080/how-to-draw-a-gdkpixbuf-using-gtk3-and-pygobject
       win = widget.get_window()
     except AttributeError:
       win = widget.window
-    w,h = map(float,win.get_size())
-    cr = widget.window.cairo_create()
+    w,h = map(float,[win.get_width(), win.get_height()]) # AttributeError: 'gtk.gdk.X11Window' object has no attribute 'get_size'
+    cr = widget.window.cairo_create() #AttributeError: 'DrawingArea' object has no attribute 'window'
     
     #probj(cr,'rgb')
     
