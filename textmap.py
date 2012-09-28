@@ -14,10 +14,8 @@
 # this program; if not, write to the Free Software Foundation, Inc., 51
 # Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
 
-from gi.repository import Gtk
+from gi.repository import Gedit, GObject, Gtk
 import time
-from gi.repository import GObject
-import gedit
 import sys
 import math
 import cairo
@@ -200,34 +198,34 @@ BUG_DOC_GET_SEARCH_TEXT = 4
 if platform.system() == 'Darwin':
   BUG_MASK |= BUG_CAIRO_MAC_FONT_REF  # extra decref causes aborts, use less font ops
 
-major,minor,patch = gedit.version
-if major<=2 and minor<28:
-  BUG_MASK |= BUG_CAIRO_TEXT_EXTENTS  # some reference problem
-  BUG_MASK |= BUG_DOC_GET_SEARCH_TEXT # missing INCREF then
+
+major,minor,patch = Gedit.version  # detecting any gedit less than 3 is pointless since this version of the plugin wouldn't load at all in gedit2
+#if major<=2 and minor<28:
+#  BUG_MASK |= BUG_CAIRO_TEXT_EXTENTS  # some reference problem
+#  BUG_MASK |= BUG_DOC_GET_SEARCH_TEXT # missing INCREF then
   
 def text_extents(str,cr):
   "code around bug in older cairo"
-  
-  if BUG_MASK & BUG_CAIRO_TEXT_EXTENTS:  
-    if str:
-      x, y = cr.get_current_point()
-      cr.move_to(0,-5)
-      cr.show_text(str)
-      nx,ny = cr.get_current_point()
-      cr.move_to(x,y)
-    else:
-      nx = 0
-      ny = 0
+  #  
+  #  if BUG_MASK & BUG_CAIRO_TEXT_EXTENTS:  
+  #    if str:
+  #      x, y = cr.get_current_point()
+  #      cr.move_to(0,-5)
+  #      cr.show_text(str)
+  #      nx,ny = cr.get_current_point()
+  #      cr.move_to(x,y)
+  #    else:
+  #      nx = 0
+  #      ny = 0
 
-    #print repr(str),x,nx,y,ny
-    ascent, descent, height, max_x_advance, max_y_advance = cr.font_extents()
-    
-    return nx, height
-  
-  else:
-  
-    x_bearing, y_bearing, width, height, x_advance, y_advance = cr.text_extents(str)
-    return width, height
+  #    #print repr(str),x,nx,y,ny
+  #    ascent, descent, height, max_x_advance, max_y_advance = cr.font_extents()
+  #    
+  #    return nx, height
+  #  
+  #  else:
+  x_bearing, y_bearing, width, height, x_advance, y_advance = cr.text_extents(str)
+  return width, height
     
 def pr_text_extents(s,cr):
   x_bearing, y_bearing, width, height, x_advance, y_advance = cr.text_extents(s)
@@ -1178,22 +1176,25 @@ class TextmapWindowHelper:
   def update_ui(me):
     queue_refresh(me.textmapview)
     
-class TextmapPlugin(gedit.Plugin):
+class TextmapPlugin(GObject.Object, Gedit.WindowActivatable):
+  __gtype_name__ = "TextMap"
+  window = GObject.property(type=Gedit.Window)
+
   def __init__(me):
-    gedit.Plugin.__init__(me)
+    GObject.Object.__init__(me)
     me._instances = {}
 
-  def activate(me, window):
-    me._instances[window] = TextmapWindowHelper(me, window)
+  def do_activate(me):
+    me._instances[me.window] = TextmapWindowHelper(me, me.window)
 
-  def deactivate(me, window):
-    if window in me._instances:
-      me._instances[window].deactivate()
+  def do_deactivate(me):
+    if me.window in me._instances:
+      me._instances[me.window].deactivate()
 
-  def update_ui(me, window):
+  def do_update_state(me):
     # Called whenever the window has been updated (active tab
     # changed, etc.)
     #print 'plugin.update_ui'
-    if window in me._instances:
-      me._instances[window].update_ui()
+    if me.window in me._instances:
+      me._instances[me.window].update_ui()
       #window.do_expose_event()
