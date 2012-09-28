@@ -1,3 +1,4 @@
-1) copy textmap.gedit-plugin and textmap.py to your ~/.gnome2/gedit/plugins/ folder
+1a) for gedit2 copy textmap.gedit-plugin and textmap.py to your ~/.gnome2/gedit/plugins/ folder
+1b) for gedit3 copy textmap.gedit-plugin and textmap.py to your ~/.local/share/gedit/plugins/ folder
 
 2) restart gedit

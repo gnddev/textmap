@@ -25,7 +25,7 @@ import re
 import copy
 import platform
 
-version = "0.2 beta"
+version = "0.3.0"
 
 # ------------------------------------------------------------------------------
 # These regular expressions are applied in sequence ot each line, to determine
@@ -379,7 +379,7 @@ def scrollbar(lines,topI,botI,w,h,bg,cr,scrollbarW=10):
   if botY is None:
     botY = lines[-1].y
 
-  if 0: # bg rectangle     
+  if 0: # bg rectangle
     cr.set_source_rgba(.1,.1,.1,.35)
     cr.rectangle(w-scrollbarW,0,scrollbarW,topY)
     cr.fill()
