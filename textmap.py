@@ -40,6 +40,7 @@ SectionREs = (
   re.compile('^\w+[\w\s\*]*?(\w*)\s*\('),                  # C method
   
   re.compile('^function\s*(\w+)\s*\('),                    # javascript method
+  #re.compile('^\-\>\s*(\w+)\s*'),                          # coffeescript method
   
   re.compile('\w+[\w\s]*?class (\w*)'),                    # java class
 )
@@ -802,7 +803,7 @@ class TextmapView(Gtk.VBox):
       return
       
     docrec = self.doc_attached_data[id(doc)]
-    s = doc.get_search_text()[0]
+    s = doc.get_search_text()[0] #TypeError: get_search_text() takes exactly 2 arguments (1 given)
     if s <> docrec.search_text:
       docrec.search_text = s
       queue_refresh(self)    
@@ -868,7 +869,7 @@ class TextmapView(Gtk.VBox):
     searchBG = (0,1,0)
       
     
-    #print doc
+    print doc
        
     try:
       #apparently this isn't best approach anymore... http://stackoverflow.com/questions/10270080/how-to-draw-a-gdkpixbuf-using-gtk3-and-pygobject
@@ -876,7 +877,8 @@ class TextmapView(Gtk.VBox):
     except AttributeError:
       win = widget.window
     w,h = map(float,[win.get_width(), win.get_height()]) # AttributeError: 'gtk.gdk.X11Window' object has no attribute 'get_size'
-    cr = widget.window.cairo_create() #AttributeError: 'DrawingArea' object has no attribute 'window'
+    cr = win.cairo_create()
+    #cr = widget.window.cairo_create() #AttributeError: 'DrawingArea' object has no attribute 'window'
     
     #probj(cr,'rgb')
     
@@ -895,7 +897,7 @@ class TextmapView(Gtk.VBox):
       cr.fill()
       cr.move_to(0,0)
             
-    search_text = doc.get_search_text()[0]
+    search_text = doc.get_search_text()[0] #TypeError: get_search_text() takes exactly 2 arguments (1 given)
       
     #if not search_text and not self.draw_sections:
     #    return
